@@ -43,3 +43,26 @@ def test_crlf_input_gives_same_lines(parser, fixture_text):
     a = parser.parse(fixture_text)
     b = parser.parse(fixture_text.replace("\n", "\r\n"))
     assert a == b
+
+
+def test_finds_headings_in_order(parser, fixture_text):
+    doc = parser.parse(fixture_text)
+    assert [(h.level, h.text, h.line) for h in doc.headings] == [
+        (1, "Pipeline Sketch", 5),
+        (2, "Overview", 9),
+        (2, "Decisions", 21),
+        (2, "Calls", 40),
+        (2, "Types", 53),
+        (2, "Broken on purpose", 67),
+    ]
+    assert doc.headings[0].preceded_by_content is False
+    assert all(h.preceded_by_content for h in doc.headings[1:])
+
+
+def test_empty_text_has_no_headings(parser):
+    assert parser.parse("").headings == ()
+
+
+def test_fenced_hash_is_not_a_heading(parser):
+    doc = parser.parse("```\n# not a heading\n```\n")
+    assert doc.headings == ()

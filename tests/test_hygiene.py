@@ -75,3 +75,11 @@ def test_clean_tree_and_placeholders_pass(tmp_path):
     )
     proc = scan(tmp_path, env=_env_without_deny())
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_git_pointer_file_is_not_scanned(tmp_path):
+    """A linked worktree stores .git as a file, often with a home-directory path."""
+    (tmp_path / ".git").write_text("gitdir: " + "/ho" + "me/runner/work/repo/.git\n", encoding="utf-8")
+    (tmp_path / "ok.md").write_text("A clean file.\n", encoding="utf-8")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 0, proc.stdout + proc.stderr

@@ -35,6 +35,7 @@ PLATFORMS: dict[str, type[Platform]] = {
 WRITERS: dict[str, type[ArticleWriter]] = {}  # Phase 2
 
 DEFAULT_RENDERER = "mermaidx"
+DEFAULT_PARSER = "markdown-it"
 
 
 def _is_wsl() -> bool:
@@ -52,6 +53,15 @@ def detect_platform() -> Platform:
     if sys.platform.startswith("linux") and _is_wsl():
         return WslPlatform()
     return PosixPlatform()
+
+
+def make_parser(name: str = DEFAULT_PARSER) -> MarkdownParser:
+    try:
+        return PARSERS[name]()
+    except KeyError:
+        raise UsageError(
+            f"unknown parser {name!r}; available: {', '.join(sorted(PARSERS))}"
+        ) from None
 
 
 def make_renderer(name: str) -> DiagramRenderer:
