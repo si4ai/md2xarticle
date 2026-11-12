@@ -1,0 +1,44 @@
+PLANTED HYGIENE FIXTURE. Not real credentials. Excluded from the normal scan.
+Each labelled form must be reported by --selftest. Labels starting with
+"clean " are near misses that must stay clean.
+
+email: planted.finding@must-fail.biz
+
+windows home: C:\Users\planted-user\secret.md
+
+posix home: /home/planted-user/article.md
+
+macos home: /Users/planted-user/article.md
+
+wsl share: \\wsl$\Ubuntu\home\planted-user\article.md
+
+wsl share forward slashes: //wsl$/Ubuntu/home/planted-user/article.md
+
+wsl localhost share: \\wsl.localhost\Ubuntu\home\planted-user\article.md
+
+wsl localhost share forward slashes: //wsl.localhost/Ubuntu/home/planted-user/article.md
+
+wsl mnt windows home: /mnt/c/Users/planted-user/article.md
+
+pem:
+-----BEGIN PRIVATE KEY-----
+PLANTED FIXTURE NOT A KEY
+-----END PRIVATE KEY-----
+
+github token shape: ghp_PlantedFindingTokenNotReal000001
+
+aws key shape: AKIA0PLANTED0FIND001
+
+pypi token shape: pypi-AgEIcHlwaS5vcmcPLANTED0FIXTURE0NOT0A0REAL0TOKEN0000000000000000
+
+sk key shape: sk-PLANTED0FIXTURE0NOT0A0REAL0TOKEN0000000000000000
+
+sk project key shape: sk-proj-PLANTED0FIXTURE0NOT0A0REAL0TOKEN0000000000000000
+
+clean mnt placeholder: /mnt/c/Users/<user>/article.md
+
+clean mnt other folder: /mnt/c/Program Files/app
+
+clean sk slug: sk-learn-is-a-python-library-for-machine-learning
+
+clean short sk: sk-abc123
