@@ -81,4 +81,6 @@ def load_builtin(name: str) -> Theme:
     theme = Theme(**data)
     hex_to_rgb(theme.canvas)
     hex_to_rgb(theme.title_color)
+    if theme.subtitle_color is not None:
+        hex_to_rgb(theme.subtitle_color)
     return theme
