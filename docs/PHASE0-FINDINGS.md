@@ -2,7 +2,7 @@
 
 Renderer and composition notes from a synthetic Mermaid set, rendered with mermaidx 0.11.3, novasvg 0.11.5, quickjs-ng 0.18.0.1, and Pillow 13.0.0.
 
-The X paste test and an owner pick of theme samples are still open. The owner runs the paste test. Until then, the default theme is `soft`.
+The X paste test is still open; the owner runs it. The owner picked `mono` as the default theme from the theme samples.
 
 ## What renders well
 

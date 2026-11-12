@@ -6,7 +6,7 @@ import pytest
 
 from md2xarticle import factory
 from md2xarticle.compose.measure import measure
-from md2xarticle.theme import hex_to_rgb, load_builtin
+from md2xarticle.theme import BUILTIN_THEMES, hex_to_rgb, load_builtin
 from tests.helpers import assert_canvas, fake_rendered
 
 COMPOSERS = sorted({**factory.BODY_COMPOSERS, **factory.COVER_COMPOSERS}.items())
@@ -18,7 +18,7 @@ def composer_cls(request):
     return request.param
 
 
-@pytest.mark.parametrize("theme_name", ["soft", "mono", "warm"])
+@pytest.mark.parametrize("theme_name", BUILTIN_THEMES)
 @pytest.mark.parametrize("shape", sorted(SHAPES))
 def test_centered_exact_size(composer_cls, theme_name, shape):
     theme = load_builtin(theme_name)

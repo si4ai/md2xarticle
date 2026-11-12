@@ -10,7 +10,7 @@ DIST_INFO = "md2xarticle-0.1.0.dist-info/"
 GOOD_WHEEL = [
     "md2xarticle/__init__.py",
     "md2xarticle/compose/body.py",
-    "md2xarticle/themes/soft.json",
+    *(f"md2xarticle/themes/{t}.json" for t in dist_check.THEMES),
     "md2xarticle/py.typed",
     *(DIST_INFO + f for f in sorted(dist_check.DIST_INFO_FILES)),
 ]
@@ -19,10 +19,23 @@ GOOD_SDIST = [
     ROOT + n
     for n in (
         "pyproject.toml", "README.md", "LICENSE", "PKG-INFO", ".gitignore",
-        "src/md2xarticle/__init__.py", "src/md2xarticle/themes/soft.json",
+        "src/md2xarticle/__init__.py",
+        *(f"src/md2xarticle/themes/{t}.json" for t in dist_check.THEMES),
         "tests/test_cli.py", "tests/snapshots/synthetic_article.md", "tests/snapshots/synthetic_article.expected.json",
     )
 ]
+
+
+def test_theme_list_matches_the_package():
+    from md2xarticle.theme import BUILTIN_THEMES
+
+    assert sorted(dist_check.THEMES) == sorted(BUILTIN_THEMES)
+
+
+@pytest.mark.parametrize("theme", ["x-dark", "soft"])
+def test_missing_theme_fails(theme):
+    with pytest.raises(dist_check.CheckFailed, match=theme):
+        dist_check.check_file_list("wheel", [n for n in GOOD_WHEEL if not n.endswith(f"/{theme}.json")])
 
 
 def test_clean_lists_pass():
