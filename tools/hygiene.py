@@ -1,0 +1,428 @@
+#!/usr/bin/env python3
+"""Repo hygiene scanner. Standard library only.
+
+Scans the work tree for email shapes, home-directory paths (Windows
+user folders, Unix and macOS home folders, and WSL UNC shares),
+secret shapes, and PEM blocks. An optional deny-list file kept
+outside the repo may be passed with --deny-list.
+
+The planted fixture under tools/testdata/ is excluded from a normal
+scan. --selftest runs the scanner against that fixture and exits 0
+only when the expected kinds are reported, so a finding is proven
+to fail visibly.
+
+Findings name the kind and the path (or commit), never the matched
+text.
+
+Exit codes: 0 clean (or a successful self-test), 1 findings (or a
+failed self-test), 2 usage or internal error.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+PLANT_REL = Path("tools") / "testdata" / "hygiene_plant.txt"
+SKIP_DIR_NAMES = frozenset(
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "build",
+        "dist",
+    }
+)
+SKIP_SUFFIXES = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".ico",
+        ".pdf",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".eot",
+        ".zip",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".whl",
+        ".so",
+        ".dylib",
+        ".dll",
+        ".exe",
+        ".pyc",
+        ".pyo",
+        ".pyd",
+    }
+)
+MAX_BYTES = 2_000_000
+
+# Placeholder local-part/domain values that docs are allowed to use.
+_PLACEHOLDER_EMAIL_DOMAINS = frozenset(
+    {
+        "example.com",
+        "example.org",
+        "example.net",
+        "users.noreply.github.com",
+        "noreply.github.com",
+        "users.noreply.gitlab.com",
+        "noreply.gitlab.com",
+    }
+)
+_PLACEHOLDER_EMAIL_TLDS = frozenset({"example", "test", "invalid", "localhost"})
+# File-extension "domains" from Markdown image/asset refs, not mail.
+_ASSET_TLDS = frozenset(
+    {
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "svg",
+        "webp",
+        "ico",
+        "js",
+        "mjs",
+        "css",
+        "py",
+        "md",
+        "txt",
+        "json",
+        "whl",
+        "gz",
+    }
+)
+_HOME_PLACEHOLDERS = frozenset(
+    {
+        "",
+        "*",
+        "...",
+        "example",
+        "user",
+        "username",
+        "you",
+        "name",
+        "folder",
+        "someone",
+        "shared",
+        "default",
+        "public",
+        "all users",
+    }
+)
+
+# Literals below are assembled from pieces so this source file does not
+# itself match the rules it enforces.
+_USERS = "Users"
+_HOME = "home"
+_WSL = "wsl"
+_PRIV = "PRIVATE "
+_KEY = "KEY"
+
+EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})"
+)
+_WIN_USERS_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:[A-Za-z]:|\\\\[?]\\[A-Za-z]:)(?:\\\\|\\|/)+"
+    + _USERS
+    + r"(?:\\\\|\\|/)+([^\\/\s\"'`<>()\[\]{}:;,|]*)",
+    re.IGNORECASE,
+)
+_POSIX_HOME_RE = re.compile(
+    r"(?<![\w.~-])/(?:" + _HOME + r"|" + _USERS + r")/"
+    r"([^\\/\s\"'`<>()\[\]{}:;,|]*)"
+)
+_WSL_RE = re.compile(
+    r"(?:\\\\" + _WSL + r"\$[\\/]+\S+|//" + _WSL + r"\$/\S+)",
+    re.IGNORECASE,
+)
+_PEM_RE = re.compile(
+    r"-{5}BEGIN [A-Z0-9 ]{0,40}" + _PRIV + _KEY + r"-{5}"
+)
+_AWS_ID_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Za-z0-9_-])"
+)
+_GITHUB_PAT_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:gh[pousr]_[A-Za-z0-9]{20,}|"
+    r"github" + r"_pat_[A-Za-z0-9_]{20,})(?![A-Za-z0-9_-])"
+)
+_PYPI_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])pypi-AgE[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
+)
+_SLACK_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])xox[abprs]-[A-Za-z0-9-]{10,}(?![A-Za-z0-9_-])"
+)
+_SK_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])sk-(?:proj-|ant-[a-z0-9]{2,8}-|svcacct-|admin-)?"
+    r"[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
+)
+_URL_CRED_RE = re.compile(r"://[^\s/@:]+:[^\s/@]+@")
+
+
+def email_is_placeholder(addr: str) -> bool:
+    local, _, domain = addr.rpartition("@")
+    domain = domain.casefold().rstrip(".")
+    if local == "git":
+        return True
+    if domain in _PLACEHOLDER_EMAIL_DOMAINS:
+        return True
+    if any(domain.endswith("." + item) for item in _PLACEHOLDER_EMAIL_DOMAINS):
+        return True
+    tld = domain.rsplit(".", 1)[-1]
+    return tld in _PLACEHOLDER_EMAIL_TLDS or tld in _ASSET_TLDS
+
+
+def home_segment_is_placeholder(segment: str) -> bool:
+    seg = segment.strip().casefold()
+    if seg in _HOME_PLACEHOLDERS:
+        return True
+    return seg[:1] in ("$", "%", "<", "{", "*", ".")
+
+
+def scan_text(text: str, deny: tuple[str, ...]) -> list[str]:
+    """Return finding kinds present in text. Never returns the match."""
+    kinds: list[str] = []
+    seen: set[str] = set()
+
+    def add(kind: str) -> None:
+        if kind not in seen:
+            seen.add(kind)
+            kinds.append(kind)
+
+    for match in EMAIL_RE.finditer(text):
+        if not email_is_placeholder(match.group(1)):
+            add("email")
+            break
+    if any(
+        not home_segment_is_placeholder(match.group(1))
+        for match in _WIN_USERS_RE.finditer(text)
+    ) or any(
+        not home_segment_is_placeholder(match.group(1))
+        for match in _POSIX_HOME_RE.finditer(text)
+    ) or _WSL_RE.search(text):
+        add("home path")
+    if _PEM_RE.search(text):
+        add("pem")
+    if (
+        _AWS_ID_RE.search(text)
+        or _GITHUB_PAT_RE.search(text)
+        or _PYPI_RE.search(text)
+        or _SLACK_RE.search(text)
+        or _SK_RE.search(text)
+        or _URL_CRED_RE.search(text)
+    ):
+        add("secret")
+    folded = text.casefold()
+    for word in deny:
+        if word and word in folded:
+            add("deny-list")
+            break
+    return kinds
+
+
+def load_deny_list(path: Path | None) -> tuple[str, ...]:
+    if path is None:
+        return ()
+    if not path.is_file():
+        raise FileNotFoundError(f"deny-list not found: {path}")
+    words: list[str] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        words.append(line.casefold())
+    return tuple(words)
+
+
+def iter_files(root: Path, excluded: set[Path]):
+    root = root.resolve()
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if name not in SKIP_DIR_NAMES and not name.endswith(".egg-info")
+        ]
+        for name in filenames:
+            path = Path(dirpath) / name
+            if path.suffix.lower() in SKIP_SUFFIXES:
+                continue
+            try:
+                resolved = path.resolve()
+            except OSError:
+                continue
+            if resolved in excluded:
+                continue
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                continue
+            yield resolved
+
+
+def read_text(path: Path) -> str | None:
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None
+    if size > MAX_BYTES or size == 0:
+        return None
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if b"\0" in data[:8192]:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def rel_where(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def scan_tree(
+    root: Path, deny: tuple[str, ...], excluded: set[Path]
+) -> list[tuple[str, str]]:
+    findings: list[tuple[str, str]] = []
+    for path in iter_files(root, excluded):
+        text = read_text(path)
+        if text is None:
+            continue
+        where = rel_where(path, root)
+        for kind in scan_text(text, deny):
+            findings.append((kind, where))
+    return findings
+
+
+def _git(root: Path, *args: str) -> bytes:
+    return subprocess.check_output(
+        ["git", "-C", str(root), *args],
+        stderr=subprocess.STDOUT,
+    )
+
+
+def scan_commits(
+    root: Path, base: str, head: str, deny: tuple[str, ...]
+) -> list[tuple[str, str]]:
+    findings: list[tuple[str, str]] = []
+    revs = (
+        _git(root, "rev-list", f"{base}..{head}")
+        .decode()
+        .split()
+    )
+    for rev in revs:
+        body = _git(root, "log", "-1", "--format=%B", rev).decode(
+            "utf-8", "replace"
+        )
+        where = f"git commit {rev[:12]}"
+        for kind in scan_text(body, deny):
+            findings.append((kind, where))
+    return findings
+
+
+def default_excluded(root: Path) -> set[Path]:
+    plant = (root / PLANT_REL).resolve()
+    return {plant} if plant.exists() else set()
+
+
+def to_markdown(findings: list[tuple[str, str]]) -> str:
+    if not findings:
+        return "hygiene: no findings.\n"
+    lines = [f"hygiene: {len(findings)} finding(s)", ""]
+    for kind, where in findings:
+        lines.append(f"- {kind} in {where}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def run_selftest(root: Path) -> int:
+    plant = (root / PLANT_REL).resolve()
+    if not plant.is_file():
+        print(f"hygiene self-test: planted fixture missing: {PLANT_REL}", file=sys.stderr)
+        return 2
+    text = read_text(plant)
+    if text is None:
+        print("hygiene self-test: planted fixture could not be read", file=sys.stderr)
+        return 2
+    kinds = set(scan_text(text, ()))
+    expected = {"email", "home path", "pem", "secret"}
+    missing = sorted(expected - kinds)
+    if missing:
+        print(
+            "hygiene self-test failed: planted fixture did not report: "
+            + ", ".join(missing),
+            file=sys.stderr,
+        )
+        print(
+            "kinds reported: " + (", ".join(sorted(kinds)) or "(none)"),
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        "hygiene self-test ok: planted fixture was reported "
+        f"({', '.join(sorted(kinds))})."
+    )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Scan the tree for hygiene findings")
+    ap.add_argument("--root", type=Path, default=Path.cwd(), help="work tree to scan")
+    ap.add_argument(
+        "--deny-list",
+        type=Path,
+        default=None,
+        help="optional deny-list file kept outside the repo",
+    )
+    ap.add_argument(
+        "--base",
+        default=None,
+        help="with --head, also scan commit messages in BASE..HEAD",
+    )
+    ap.add_argument("--head", default="HEAD", help="range head for --base")
+    ap.add_argument(
+        "--selftest",
+        action="store_true",
+        help="prove the planted fixture fails visibly, then exit",
+    )
+    args = ap.parse_args(argv)
+    root = args.root
+    try:
+        deny_path = args.deny_list
+        if deny_path is None and os.environ.get("MD2XARTICLE_HYGIENE_DENYLIST"):
+            deny_path = Path(os.environ["MD2XARTICLE_HYGIENE_DENYLIST"])
+        deny = load_deny_list(deny_path)
+        if args.selftest:
+            return run_selftest(root)
+        findings = scan_tree(root, deny, default_excluded(root))
+        if args.base:
+            findings.extend(scan_commits(root, args.base, args.head, deny))
+    except FileNotFoundError as exc:
+        print(f"hygiene: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"hygiene: {exc}", file=sys.stderr)
+        return 2
+    sys.stdout.write(to_markdown(findings))
+    return 1 if findings else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

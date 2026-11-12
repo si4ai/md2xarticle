@@ -1,0 +1,16 @@
+PLANTED HYGIENE FIXTURE. Not real credentials. Excluded from the normal scan.
+
+email: planted.finding@must-fail.biz
+
+windows home: C:\Users\planted-user\secret.md
+posix home: /home/planted-user/article.md
+macos home: /Users/planted-user/article.md
+wsl share: \\wsl$\Ubuntu\home\planted-user\article.md
+
+pem:
+-----BEGIN PRIVATE KEY-----
+PLANTED FIXTURE NOT A KEY
+-----END PRIVATE KEY-----
+
+github token shape: ghp_PlantedFindingTokenNotReal000001
+aws key shape: AKIA0PLANTED0FIND01
