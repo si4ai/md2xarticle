@@ -2,7 +2,8 @@
 """Repo hygiene scanner. Standard library only.
 
 Scans the work tree for email shapes, home-directory paths (Windows
-user folders, Unix and macOS home folders, and WSL UNC shares),
+user folders, Unix and macOS home folders, WSL UNC shares, and
+Windows user folders seen from WSL under /mnt),
 secret shapes, and PEM blocks. An optional deny-list file kept
 outside the repo may be passed with --deny-list.
 
@@ -144,8 +145,15 @@ _POSIX_HOME_RE = re.compile(
     r"(?<![\w.~-])/(?:" + _HOME + r"|" + _USERS + r")/"
     r"([^\\/\s\"'`<>()\[\]{}:;,|]*)"
 )
+# WSL UNC shares: the legacy wsl$ host and the current wsl.localhost
+# host, written with backslashes or forward slashes.
 _WSL_RE = re.compile(
-    r"(?:\\\\" + _WSL + r"\$[\\/]+\S+|//" + _WSL + r"\$/\S+)",
+    r"(?:\\\\|//)" + _WSL + r"(?:\$|\.localhost)[\\/]+\S+",
+    re.IGNORECASE,
+)
+# Windows user folders seen from inside WSL: /mnt/<drive>/Users/<name>.
+_WSL_MNT_RE = re.compile(
+    r"(?<![\w.~-])/mnt/[A-Za-z]/" + _USERS + r"/([^\\/\s\"'`<>()\[\]{}:;,|]*)",
     re.IGNORECASE,
 )
 _PEM_RE = re.compile(
@@ -164,9 +172,11 @@ _PYPI_RE = re.compile(
 _SLACK_RE = re.compile(
     r"(?<![A-Za-z0-9_-])xox[abprs]-[A-Za-z0-9-]{10,}(?![A-Za-z0-9_-])"
 )
+# sk- API keys (OpenAI and Anthropic shapes). The body must be at least
+# 32 characters and carry a digit, so kebab-case slugs do not match.
 _SK_RE = re.compile(
     r"(?<![A-Za-z0-9_-])sk-(?:proj-|ant-[a-z0-9]{2,8}-|svcacct-|admin-)?"
-    r"[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
+    r"(?=[A-Za-z_-]*[0-9])[A-Za-z0-9_-]{32,}(?![A-Za-z0-9_-])"
 )
 _URL_CRED_RE = re.compile(r"://[^\s/@:]+:[^\s/@]+@")
 
@@ -211,6 +221,9 @@ def scan_text(text: str, deny: tuple[str, ...]) -> list[str]:
     ) or any(
         not home_segment_is_placeholder(match.group(1))
         for match in _POSIX_HOME_RE.finditer(text)
+    ) or any(
+        not home_segment_is_placeholder(match.group(1))
+        for match in _WSL_MNT_RE.finditer(text)
     ) or _WSL_RE.search(text):
         add("home path")
     if _PEM_RE.search(text):
@@ -352,6 +365,50 @@ def to_markdown(findings: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
+# Each planted form, keyed by its label in the fixture, and the kind it
+# must report. A form is the labelled line plus any lines up to the next
+# blank line, so a multi-line PEM block counts as one form.
+PLANT_FORMS: dict[str, str] = {
+    "email": "email",
+    "windows home": "home path",
+    "posix home": "home path",
+    "macos home": "home path",
+    "wsl share": "home path",
+    "wsl share forward slashes": "home path",
+    "wsl localhost share": "home path",
+    "wsl localhost share forward slashes": "home path",
+    "wsl mnt windows home": "home path",
+    "pem": "pem",
+    "github token shape": "secret",
+    "aws key shape": "secret",
+    "pypi token shape": "secret",
+    "sk key shape": "secret",
+    "sk project key shape": "secret",
+}
+# Labels starting with this prefix are near misses that must stay clean.
+PLANT_CLEAN_PREFIX = "clean "
+
+
+def plant_forms(text: str) -> dict[str, str]:
+    """Map each label in the fixture to the text of its form."""
+    forms: dict[str, str] = {}
+    label: str | None = None
+    lines: list[str] = []
+    for raw in text.splitlines() + [""]:
+        if not raw.strip():
+            if label is not None:
+                forms[label] = "\n".join(lines)
+            label, lines = None, []
+            continue
+        if label is None:
+            head, sep, _ = raw.partition(":")
+            if not sep:
+                continue
+            label = head.strip()
+        lines.append(raw)
+    return forms
+
+
 def run_selftest(root: Path) -> int:
     plant = (root / PLANT_REL).resolve()
     if not plant.is_file():
@@ -361,23 +418,28 @@ def run_selftest(root: Path) -> int:
     if text is None:
         print("hygiene self-test: planted fixture could not be read", file=sys.stderr)
         return 2
-    kinds = set(scan_text(text, ()))
-    expected = {"email", "home path", "pem", "secret"}
-    missing = sorted(expected - kinds)
-    if missing:
-        print(
-            "hygiene self-test failed: planted fixture did not report: "
-            + ", ".join(missing),
-            file=sys.stderr,
-        )
-        print(
-            "kinds reported: " + (", ".join(sorted(kinds)) or "(none)"),
-            file=sys.stderr,
-        )
+    forms = plant_forms(text)
+    failures: list[str] = []
+    for label, kind in PLANT_FORMS.items():
+        if label not in forms:
+            failures.append(f"form missing from fixture: {label}")
+        elif kind not in scan_text(forms[label], ()):
+            failures.append(f"form not reported as {kind}: {label}")
+    clean = [label for label in forms if label.startswith(PLANT_CLEAN_PREFIX)]
+    for label in clean:
+        kinds = scan_text(forms[label], ())
+        if kinds:
+            failures.append(
+                f"near miss reported as {', '.join(kinds)}: {label}"
+            )
+    if failures:
+        print("hygiene self-test failed:", file=sys.stderr)
+        for line in failures:
+            print(f"- {line}", file=sys.stderr)
         return 1
     print(
-        "hygiene self-test ok: planted fixture was reported "
-        f"({', '.join(sorted(kinds))})."
+        f"hygiene self-test ok: {len(PLANT_FORMS)} planted forms reported, "
+        f"{len(clean)} near misses clean."
     )
     return 0
 

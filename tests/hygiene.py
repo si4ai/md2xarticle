@@ -24,6 +24,8 @@ DENYLIST_ENV = ("MD2X_DENYLIST", "MD2XARTICLE_HYGIENE_DENYLIST")
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", "build", "dist", "out", ".mypy_cache", ".ruff_cache"}
 SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".ttf", ".otf", ".woff", ".woff2", ".zip", ".gz", ".whl", ".pyc"}
 ALLOWED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net"}
+# Planted fixture for tools/hygiene.py --selftest; it must keep its findings.
+EXCLUDED_FILES = {"tools/testdata/hygiene_plant.txt"}
 
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("email", re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")),
@@ -98,6 +100,8 @@ def scan(root: Path, deny: list[re.Pattern[str]], files: list[Path] | None = Non
     findings: list[Finding] = []
     for path in files if files is not None else list_files(root):
         rel = path.relative_to(root).as_posix()
+        if rel in EXCLUDED_FILES:
+            continue
         if any(part in SKIP_DIRS for part in path.relative_to(root).parts[:-1]):
             continue
         if any(p.search(rel) for p in deny):

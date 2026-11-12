@@ -96,7 +96,7 @@ jobs:
           fi
           python3 tools/role_trailer.py --base "$base" --head "$head"
 
-  # Full Python range on ubuntu; 3.12 only on macOS and Windows, to keep
+  # Supported Python range (3.11+) on ubuntu; 3.12 only on macOS and Windows, to keep
   # private-repo Actions minutes reasonable until package code lands.
   # When pyproject.toml and src/md2xarticle are both absent, each cell
   # succeeds with a notice and does not install, test, or build.
@@ -110,8 +110,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            python: "3.10"
           - os: ubuntu-latest
             python: "3.11"
           - os: ubuntu-latest
