@@ -80,8 +80,11 @@ def test_same_input_twice_gives_identical_pngs(full_run, tmp_path):
         text=True,
     )
     assert proc.returncode == 1
-    for p in sorted((first / "images").iterdir()):
-        assert (second / "images" / p.name).read_bytes() == p.read_bytes(), p.name
+    names = sorted(p.name for p in (first / "images").iterdir())
+    assert names == sorted(p.name for p in (second / "images").iterdir())
+    assert "cover.png" in names and len(names) == 5
+    for name in names:
+        assert (second / "images" / name).read_bytes() == (first / "images" / name).read_bytes(), name
 
 
 def test_only_renders_selected(capsys, tmp_path):

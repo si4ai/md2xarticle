@@ -48,9 +48,9 @@ out/
     cover.png       # 5:2, only with --cover
 ```
 
-Zero config is the goal. No browser, no Node, no web service, and no network at run time. The diagram font is bundled, so images look the same on every machine. Every flag has a default.
+Zero config is the goal. No browser, no Node, no web service, and no network at run time. The diagram font is DejaVu Sans, which ships inside the pinned mermaidx package, so images look the same on every machine. Cover titles use the same font. Every flag has a default.
 
-Platforms: Windows, WSL, Linux, and macOS, on Intel and ARM where the dependencies ship wheels.
+Python 3.11 to 3.13. Platforms: Windows, WSL, Linux, and macOS, on Intel and ARM where the dependencies ship wheels.
 
 **WSL note:** run inside WSL, output lands in the Linux filesystem. To paste from a browser on Windows, either write to the Windows side (`-o /mnt/c/<folder>/out`) or open the folder through `\\wsl$`. md2xarticle prints this hint when it detects WSL.
 
@@ -122,7 +122,7 @@ The tool picks the mapping, writes it to `outline.txt`, and prints it, so a huma
 Each Mermaid block is rendered to a PNG, trimmed, and placed on a fixed canvas.
 
 - **Renderer:** [mermaidx](https://pypi.org/project/mermaidx/) by default, pinned to mermaidx==0.11.3, novasvg==0.11.5, and quickjs-ng==0.18.0.1, with Pillow==13.0.0 for composition. It runs real Mermaid inside an embedded QuickJS engine and rasterizes with novasvg, so it needs no Node and no Chrome. Known costs: about 0.5 to 2 seconds per diagram, and bundled-font metrics can differ slightly from a browser render. Fidelity notes are in [Phase 0 findings](docs/PHASE0-FINDINGS.md).
-- **Theme:** the default is `soft`: a clean bundled font, a soft palette, rounded boxes, and generous spacing. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
+- **Theme:** the default is `soft`: DejaVu Sans (from mermaidx), a soft palette, rounded boxes, and generous spacing. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
 - **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with optional title text. Every image must be the exact canvas size, with content centered within 4 px (body) or 8 px (titled cover), and a minimum margin of 4% of each side.
 - **Never cropped tight, never off-center.** A check measures the margins of every output image against those tolerances.
 
@@ -284,7 +284,7 @@ src/md2xarticle/
   write/        base.py  html.py  manifest.py
   platform/     base.py  windows.py  posix.py  wsl.py
   privacy.py
-  assets/fonts/ (bundled font and its license)
+  fonts.py      finds DejaVu Sans inside mermaidx (no font files ship here)
 tests/
   contracts/    one contract suite per base class
   snapshots/    synthetic .md fixtures and expected outputs
@@ -375,7 +375,7 @@ With no flag, the built-in defaults apply: theme `soft`, and Mermaid source is r
 
 The file may set the theme (palette, corner radius, spacing; font later), per-diagram layout overrides, cover choice, and image sizes.
 
-Python 3.11 and later reads TOML with the standard library `tomllib`. If 3.10 stays supported, the 3.10 extra is `tomli`.
+The file is read with the standard library `tomllib`, so no extra TOML dependency is needed.
 
 Example:
 
@@ -427,6 +427,9 @@ or:    md2xarticle article.md --renderer mermaidx
 - **Image checks.** Every output PNG is checked for exact canvas size, aspect ratio, and margins: content centered within 4 px (body) or 8 px (titled cover), with a minimum margin of 4% of each side. Never cropped tight.
 - **Cross-platform drift.** CI runs on Windows, macOS, and Ubuntu across the supported Python versions. Each job renders the same fixtures and compares the images with a perceptual diff against the reference, so drift shows up as a failing check with the diff attached.
 - **Determinism.** Same input twice gives byte-identical HTML and manifest. With the pinned renderer stack (mermaidx==0.11.3, novasvg==0.11.5, quickjs-ng==0.18.0.1, Pillow==13.0.0), PNG output is byte-identical across fresh processes on one platform. Cross-OS comparison stays a perceptual diff.
+- **No network.** A conversion runs in a fresh process with a socket guard that fails the run on any connect or DNS lookup, even one the caller swallows.
+- **Packaging.** CI builds the wheel and sdist on all three OSes, checks their file lists, runs the hygiene scan over their contents, installs each into a fresh venv, and runs `md2xarticle --help` and a `diagrams --cover` conversion.
+- **Spec sync.** A test fails when the Python range or the pins stated here drift from `pyproject.toml`, or when the CI Python matrix drifts from that range. Workflows are linted with a pinned, checksummed actionlint.
 
 ## Hygiene
 
@@ -436,7 +439,7 @@ This is an open-source repository. Nothing personal goes in it.
 - Fixtures are synthetic. Real articles are tested locally and never committed.
 - Example paths are generic: `article.md`, `out/`, `images/01.png`.
 - A hygiene check runs in CI on every PR and push. It scans for email shapes, home-directory paths, secret shapes, and a deny-list kept outside the repo. A planted test file proves it fails visibly.
-- The bundled font must have a license that allows redistribution, shipped beside it.
+- md2xarticle ships no font files. DejaVu Sans comes with mermaidx, under its own license. Any font bundled here later must have a license that allows redistribution, shipped beside it.
 
 ## Roadmap
 
@@ -468,7 +471,6 @@ Ask the owner. Do not guess.
 - **The owner's manual edits.** The list of hand edits made in the X editor on the real article. Each one becomes an acceptance test.
 - **Owner theme samples.** The default theme is `soft`. An owner pick of samples only confirms or changes that default. Palette, corner radius, spacing, and later the font are customization, not a one-time lock.
 - **Image placement.** How close to one-step placement X allows. Markers plus manifest is the baseline; anything better depends on what the editor permits without browser automation.
-- **Supported Python versions.** Proposed: 3.10 to 3.13, pending mermaidx wheel coverage.
 - **`--watch` mode.** Wanted or not.
 - **Caption source rules.** Which sources win, and whether a diagram with no explicit caption gets one at all.
 - **Renderer fallback.** If mermaidx output falls short of the theme bar, which alternate wins: mmdr (fast, not official Mermaid) or opt-in mmdc (needs Node and Chromium).
