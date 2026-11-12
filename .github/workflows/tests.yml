@@ -59,8 +59,10 @@ jobs:
           python-version: "3.11"
       - name: Build wheel and sdist
         run: |
-          python -m pip install build==1.6.1
+          python -m pip install build==1.6.1 twine==7.0.0
           python -m build -o dist .
+      - name: Check package metadata (twine, strict)
+        run: python -m twine check --strict dist/*
       - name: Check, scan, install, and convert each artifact
         run: python tests/dist_check.py dist
 
