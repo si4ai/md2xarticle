@@ -43,6 +43,10 @@ def test_clean_lists_pass():
     dist_check.check_file_list("sdist", GOOD_SDIST)
 
 
+def test_html_snapshot_in_sdist_passes():
+    dist_check.check_file_list("sdist", [*GOOD_SDIST, ROOT + "tests/snapshots/paste_test.html"])
+
+
 @pytest.mark.parametrize(
     "extra",
     [
@@ -67,6 +71,8 @@ def test_planted_wheel_file_fails(extra):
         "docs/REVIEW.md",
         "tests/REVIEW.md",  # Markdown in tests/ only as a fixture under snapshots/
         "tests/snapshots/real_article.txt",
+        "tests/page.html",  # HTML only as an expected snapshot under snapshots/
+        "src/md2xarticle/write/article.html",
         "ARCHITECTURE.md",
     ],
 )

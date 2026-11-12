@@ -2,7 +2,7 @@
 
 Markdown in, X Article out. One command turns a Markdown file, Mermaid diagrams included, into a paste-ready article body plus polished images for the X (Twitter) Article editor.
 
-**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring and `outline` are implemented. The full conversion (HTML, outline.txt, manifest) is not. This README is the v0 design for whoever builds it, human or bot.
+**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring, `outline`, and the HTML writer (`article.html` and `outline.txt`) are implemented. The manifest and the full conversion command are not. This README is the v0 design for whoever builds it, human or bot.
 
 ### If you are an agent
 
@@ -441,7 +441,7 @@ or:    md2xarticle article.md --renderer mermaidx
 - **No network.** A conversion runs in a fresh process with a socket guard that fails the run on any connect or DNS lookup, even one the caller swallows. On Ubuntu, CI also converts inside `unshare -rn` (no network interfaces), after proving that connects and DNS fail there and succeed outside it.
 - **Packaging.** CI builds the wheel and sdist on all three OSes, checks every file against an allowlist (package code is `.py`, themes are `.json`), runs the hygiene scan over their contents, installs each into a fresh venv, and runs `md2xarticle --help` and a `diagrams --cover` conversion.
 - **Spec sync.** A test fails when the Python range or the pins stated here drift from `pyproject.toml`, or when any workflow names a Python outside that range or none covers it all. Workflows are linted with a pinned, checksummed actionlint.
-- **Skip budget.** The run fails when more tests skip than `tests/skip_budget.py` expects (1 today: the `ArticleWriter` contract until Phase 2).
+- **Skip budget.** The run fails when more tests skip than `tests/skip_budget.py` expects (0 today).
 
 ## Hygiene
 
@@ -479,7 +479,7 @@ Phase 1 comes before the full pipeline on purpose: a real article is already dra
 
 Ask the owner. Do not guess.
 
-- **What X paste keeps.** Spacing, nested lists, links, blockquotes, inline code, tables, and code blocks are unmeasured until the Phase 0 paste test. The HTML writer is shaped by that result, not by assumption. The owner runs that test.
+- **What X paste keeps.** Spacing, nested lists, links, blockquotes, inline code, tables, and code blocks are unmeasured until the Phase 0 paste test. The owner runs that test by pasting `tests/snapshots/paste_test.html` and `tests/snapshots/paste_test.nested.html` (both written from `tests/snapshots/paste_test.md`). The HTML writer's current markup, listed under Decided, follows public reports until then.
 - **The owner's manual edits.** The list of hand edits made in the X editor on the real article. Each one becomes an acceptance test.
 - **Image placement.** How close to one-step placement X allows. Markers plus manifest is the baseline; anything better depends on what the editor permits without browser automation.
 - **`--watch` mode.** Wanted or not.
@@ -491,6 +491,18 @@ Decided:
 
 - **`--custom-path FILE`.** One TOML customization file per run, typically one file per article. No flag means built-in defaults (theme `mono`, Mermaid rendered as written). See [Customization](#customization).
 - **Default theme.** `mono` (neutral gray on white), picked by the owner from the theme samples. `soft`, `warm`, `x-light`, and `x-dark` are options, and Mermaid's own `default` theme is not used. Further look-and-feel is customization.
+- **HTML writer markup** (`write/html.py`, one function per element; revisit after the paste test). No classes, inline styles, or scripts, and the same input gives the same bytes.
+  - Headings: X Heading is `<h2>` and Subheading is `<h3>`, never `<h1>`, because X keeps the title in its own field. The title goes in `<title>` only. Heading text is plain, matching `outline.txt`.
+  - Deep headings: a bold lead-in is `<p><strong>…</strong></p>` on its own line; a run of sibling list-item headings is one `<ul>`.
+  - Paragraphs: one `<p>` per paragraph, with no empty paragraphs for spacing. A soft line break becomes a space and a hard break becomes `<br>`.
+  - Inline: `<strong>`, `<em>`, `<s>`, `<a href>` (titles dropped), and `<code>`.
+  - Lists: `<ul>` and `<ol>` (with `start` when it is not 1), always tight, so there is no `<p>` inside `<li>`. Nested lists are flattened by default into the top-level list, with an en dash per level and the number kept for ordered sub-items, because public reports say X drops nested items. `HtmlOptions(nested_lists="nest")` keeps real nesting.
+  - Quotes: `<blockquote>` with `<p>` inside.
+  - Code blocks: `<pre><code>`, with the language tag dropped because X has no highlighting.
+  - Tables: `<table>` with `<thead>`/`<tbody>`, `<th>` and `<td>`, and alignment dropped.
+  - Divider: `<hr>`.
+  - Images: each Mermaid block becomes its marker as its own `<p>`, taken from the document's image reference when one exists and `[Image NN]` otherwise. A Markdown image becomes the text `[Image: alt]`.
+  - Raw HTML in the source is escaped and shown as text.
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:
 

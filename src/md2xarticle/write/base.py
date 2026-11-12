@@ -8,8 +8,8 @@ from typing import Any
 class ArticleWriter(ABC):
     """Writes one output format (article HTML, manifest) into ``out_dir``.
 
-    No concrete writer ships in Phase 1. ``XArticleHtmlWriter`` and
-    ``ManifestWriter`` land in Phase 2.
+    ``XArticleHtmlWriter`` (``write/html.py``) writes ``article.html`` and
+    ``outline.txt``; ``ManifestWriter`` lands later in Phase 2.
     """
 
     name: str = ""

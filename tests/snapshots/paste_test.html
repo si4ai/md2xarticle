@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Paste Test</title>
+</head>
+<body>
+<p>This synthetic article exercises each element the HTML writer emits, so a paste into the X Article editor shows what is kept. Every name and link in it is made up.</p>
+<h2>Spacing</h2>
+<p>A first paragraph. This sentence sits on a new source line but belongs to the same paragraph.</p>
+<p>A second paragraph after one blank line.</p>
+<p>A third paragraph after three blank lines; it should look the same as the gap above.</p>
+<p>A line that ends with a hard break,<br>and the line after it.</p>
+<h2>Inline styles</h2>
+<p>Plain, <strong>bold</strong>, <em>italic</em>, <em><strong>bold italic</strong></em>, <s>struck</s>, and <code>inline code</code> in one line.</p>
+<p>Inline code with markup characters: <code>&lt;div class="x"&gt;a &amp; b&lt;/div&gt;</code>.</p>
+<p>Text with characters to escape: 3 &lt; 4, 5 &gt; 2, Tom &amp; Jerry, "quotes" and 'apostrophes'.</p>
+<p>Raw HTML in the source is shown as text: &lt;span&gt;not a tag&lt;/span&gt;.</p>
+<h2>Links</h2>
+<p>An <a href="https://example.com/docs">inline link</a>, a <a href="https://example.com/search?q=a&amp;lang=en">link with a query</a>, a <a href="https://example.net/reference">reference link</a>, and an autolink <a href="https://example.org/">https://example.org/</a>.</p>
+<h2>Lists</h2>
+<ul>
+<li>First bullet</li>
+<li>Second bullet with <strong>bold</strong> and a <a href="https://example.com/list">link</a></li>
+<li>– Nested bullet one</li>
+<li>– Nested bullet two</li>
+<li>– – Third level bullet</li>
+<li>Third bullet</li>
+<li>– 1. Nested numbered one</li>
+<li>– 2. Nested numbered two</li>
+</ul>
+<ol>
+<li>First step</li>
+<li>Second step</li>
+<li>Third step</li>
+</ol>
+<p>A separate numbered list:</p>
+<ol start="3">
+<li>A numbered list that starts at three</li>
+<li>And continues at four</li>
+</ol>
+<ul>
+<li>Loose list item one</li>
+<li>Loose list item two</li>
+</ul>
+<h2>Quotes</h2>
+<blockquote>
+<p>A one-paragraph quote with <strong>bold</strong> and a <a href="https://example.com/quote">link</a>.</p>
+</blockquote>
+<blockquote>
+<p>A quote with two paragraphs.</p>
+<p>The second paragraph of the same quote.</p>
+</blockquote>
+<h2>Code</h2>
+<p>A fenced block with a language tag:</p>
+<pre><code>def greet(name: str) -&gt; str:
+    if name and "&lt;" not in name:
+        return f"Hello, {name} &amp; welcome"
+
+    return "Hello"</code></pre>
+<p>An indented block:</p>
+<pre><code>plain indented code
+  keeps its indentation</code></pre>
+<h2>Tables</h2>
+<table>
+<thead>
+<tr><th>Name</th><th>Count</th><th>Note</th></tr>
+</thead>
+<tbody>
+<tr><td>Alpha</td><td>1</td><td><strong>bold</strong> cell</td></tr>
+<tr><td>Beta</td><td>22</td><td><code>code</code> cell</td></tr>
+<tr><td>Gamma</td><td>333</td><td><a href="https://example.com/table">link</a></td></tr>
+</tbody>
+</table>
+<h2>Images</h2>
+<p>The diagram goes here:</p>
+<p>[Image 01]</p>
+<p>A Markdown image cannot be pasted either: [Image: A sample chart]</p>
+<h2>Heading levels</h2>
+<h3>A subheading</h3>
+<p><strong>A deep heading that becomes a bold lead-in</strong></p>
+<p>Body text under the lead-in.</p>
+<ul>
+<li>First sibling</li>
+<li>Second sibling</li>
+<li>Third sibling</li>
+</ul>
+<hr>
+<p>The end, after a divider.</p>
+</body>
+</html>

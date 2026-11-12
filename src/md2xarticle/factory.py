@@ -22,6 +22,7 @@ from md2xarticle.render.base import DiagramRenderer
 from md2xarticle.render.mermaidx import MermaidxRenderer
 from md2xarticle.theme import Theme
 from md2xarticle.write.base import ArticleWriter
+from md2xarticle.write.html import XArticleHtmlWriter
 
 PARSERS: dict[str, type[MarkdownParser]] = {"markdown-it": MarkdownItParser}
 RENDERERS: dict[str, type[DiagramRenderer]] = {"mermaidx": MermaidxRenderer}
@@ -32,7 +33,7 @@ PLATFORMS: dict[str, type[Platform]] = {
     "windows": WindowsPlatform,
     "wsl": WslPlatform,
 }
-WRITERS: dict[str, type[ArticleWriter]] = {}  # Phase 2
+WRITERS: dict[str, type[ArticleWriter]] = {"x-article-html": XArticleHtmlWriter}
 
 DEFAULT_RENDERER = "mermaidx"
 DEFAULT_PARSER = "markdown-it"

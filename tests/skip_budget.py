@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-# 1: the ArticleWriter contract, until Phase 2 adds a concrete writer.
-EXPECTED_SKIPS = 1
+# 0: the ArticleWriter contract runs now that XArticleHtmlWriter is registered.
+EXPECTED_SKIPS = 0
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

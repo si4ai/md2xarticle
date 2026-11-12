@@ -42,8 +42,8 @@ DIST_INFO_FILES = {"METADATA", "WHEEL", "RECORD", "entry_points.txt", "licenses/
 # sdist: fixed top-level files, the package, and the test suite.
 SDIST_FILES = {"README.md", "LICENSE", "pyproject.toml", "PKG-INFO", ".gitignore"}
 TEST_SUFFIXES = {".py", ".json"}
-# Synthetic Markdown fixtures live only in tests/snapshots/.
-FIXTURE_DIR, FIXTURE_SUFFIXES = "tests/snapshots/", {".md", ".json"}
+# Synthetic Markdown fixtures and their expected output live only in tests/snapshots/.
+FIXTURE_DIR, FIXTURE_SUFFIXES = "tests/snapshots/", {".md", ".json", ".html"}
 
 
 class CheckFailed(Exception):
