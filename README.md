@@ -439,7 +439,7 @@ This is an open-source repository. Nothing personal goes in it.
 - No personal information, real names, usernames, local paths, email addresses, or secrets anywhere: code, package, tests, fixtures, docs, examples, commit messages.
 - Fixtures are synthetic. Real articles are tested locally and never committed.
 - Example paths are generic: `article.md`, `out/`, `images/01.png`.
-- A hygiene check runs in CI on every PR and push. It scans for email shapes, home-directory paths, secret shapes, and a deny-list kept outside the repo. A planted test file proves it fails visibly.
+- A hygiene check (`tools/hygiene.py`, the one scanner) runs in CI on every PR and push, over the tree, the commit messages, and the built wheel and sdist. It scans for email shapes, home-directory paths, secret shapes, and a deny-list kept outside the repo (`MD2XARTICLE_HYGIENE_DENYLIST`). Its planted fixture (`--selftest`) and the pytest suite prove it fails visibly.
 - md2xarticle ships no font files. DejaVu Sans comes with mermaidx, under its own license. Any font bundled here later must have a license that allows redistribution, shipped beside it.
 
 ## Roadmap

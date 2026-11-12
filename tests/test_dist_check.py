@@ -62,11 +62,19 @@ def test_planted_sdist_file_fails(extra):
         dist_check.check_file_list("sdist", [*GOOD_SDIST, ROOT + extra])
 
 
-def test_hygiene_finding_in_unpacked_artifact_fails(tmp_path, monkeypatch):
-    for name in dist_check.hygiene.DENYLIST_ENV:
-        monkeypatch.delenv(name, raising=False)
+def test_hygiene_finding_in_unpacked_artifact_fails(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("MD2XARTICLE_HYGIENE_DENYLIST", raising=False)
     root = tmp_path / "unpacked" / "md2xarticle"
     root.mkdir(parents=True)
-    (root / "planted.py").write_text('OUT = "/home/' + 'someone/out"\n', encoding="utf-8")
-    with pytest.raises(dist_check.CheckFailed, match="1 hygiene finding"):
+    (root / "planted.py").write_text('OUT = "/home/' + 'alice/out"\n', encoding="utf-8")
+    with pytest.raises(dist_check.CheckFailed, match="hygiene scan exited 1: hygiene: 1 finding"):
         dist_check.scan_hygiene("wheel", tmp_path / "unpacked")
+    assert "home path in md2xarticle/planted.py" in capsys.readouterr().err
+
+
+def test_clean_unpacked_artifact_passes(tmp_path, monkeypatch):
+    monkeypatch.delenv("MD2XARTICLE_HYGIENE_DENYLIST", raising=False)
+    root = tmp_path / "unpacked" / "md2xarticle"
+    root.mkdir(parents=True)
+    (root / "ok.py").write_text('OUT = "out/images"\n', encoding="utf-8")
+    dist_check.scan_hygiene("wheel", tmp_path / "unpacked")

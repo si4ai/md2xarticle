@@ -28,8 +28,8 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-import hygiene  # noqa: E402
+# The one hygiene scanner. dist_check runs from a repo checkout; tools/ does not ship.
+SCANNER = HERE.parent / "tools" / "hygiene.py"
 
 FIXTURE = HERE / "snapshots" / "synthetic_article.md"
 BINARY_ONLY = "mermaidx,novasvg,quickjs-ng,Pillow"
@@ -108,11 +108,13 @@ def unpack(kind: str, path: Path, dest: Path) -> None:
 
 
 def scan_hygiene(kind: str, root: Path) -> None:
-    deny = hygiene.load_denylist(hygiene.denylist_from_env())
-    findings = hygiene.scan(root, deny)
-    for f in findings:
-        print(f"hygiene ({kind}): {f}", file=sys.stderr)
-    check(not findings, f"{kind}: {len(findings)} hygiene finding(s); matched text is not printed")
+    """tools/hygiene.py over the unpacked artifact; it never prints matched text."""
+    check(SCANNER.is_file(), f"hygiene scanner missing: {SCANNER.name}")
+    p = subprocess.run([sys.executable, str(SCANNER), "--root", str(root)], capture_output=True, text=True, encoding="utf-8")
+    for line in p.stdout.splitlines():
+        if line.startswith("- "):
+            print(f"hygiene ({kind}): {line[2:]}", file=sys.stderr)
+    check(p.returncode == 0, f"{kind}: hygiene scan exited {p.returncode}: {p.stdout.splitlines()[0] if p.stdout else p.stderr.strip()}")
 
 
 def png_size(path: Path) -> tuple[int, int]:
