@@ -23,6 +23,7 @@ from md2xarticle.render.mermaidx import MermaidxRenderer
 from md2xarticle.theme import Theme
 from md2xarticle.write.base import ArticleWriter
 from md2xarticle.write.html import XArticleHtmlWriter
+from md2xarticle.write.manifest import ManifestWriter
 
 PARSERS: dict[str, type[MarkdownParser]] = {"markdown-it": MarkdownItParser}
 RENDERERS: dict[str, type[DiagramRenderer]] = {"mermaidx": MermaidxRenderer}
@@ -33,7 +34,10 @@ PLATFORMS: dict[str, type[Platform]] = {
     "windows": WindowsPlatform,
     "wsl": WslPlatform,
 }
-WRITERS: dict[str, type[ArticleWriter]] = {"x-article-html": XArticleHtmlWriter}
+WRITERS: dict[str, type[ArticleWriter]] = {
+    "x-article-html": XArticleHtmlWriter,
+    "manifest": ManifestWriter,
+}
 
 DEFAULT_RENDERER = "mermaidx"
 DEFAULT_PARSER = "markdown-it"
@@ -62,6 +66,15 @@ def make_parser(name: str = DEFAULT_PARSER) -> MarkdownParser:
     except KeyError:
         raise UsageError(
             f"unknown parser {name!r}; available: {', '.join(sorted(PARSERS))}"
+        ) from None
+
+
+def make_writer(name: str = "manifest") -> ArticleWriter:
+    try:
+        return WRITERS[name]()
+    except KeyError:
+        raise UsageError(
+            f"unknown writer {name!r}; available: {', '.join(sorted(WRITERS))}"
         ) from None
 
 

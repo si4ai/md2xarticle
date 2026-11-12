@@ -17,6 +17,10 @@ class MermaidBlock:
     index: int
     source: str
     line: int
+    # Filled by the parser for captions and markers:
+    anchor_text: str | None = None  # paragraph immediately before the block
+    figure_text: str | None = None  # following "Figure:" line, if any
+    nearest_heading: str | None = None
 
 
 @dataclass(frozen=True)
@@ -55,3 +59,36 @@ class RenderedImage:
     native_size: tuple[int, int]
     background: str
     rasterize: Callable[[float], bytes] = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class ImageRef:
+    """One body image, ready for a marker, the manifest, and the HTML writer.
+
+    ``order`` is 1-based in reading order. ``file`` is relative to the output
+    folder, with forward slashes (``images/01.png``). ``marker`` is the
+    visible placeholder, for example ``[Image 01: System overview]``.
+    ``anchor_text`` is the paragraph immediately before the diagram, or
+    ``None`` when there is not one. ``source_line`` is the 1-based line
+    where the diagram source starts.
+    """
+
+    order: int
+    file: str
+    marker: str
+    caption: str
+    anchor_text: str | None
+    source_line: int
+
+
+@dataclass(frozen=True)
+class Article:
+    """The shaped article passed to ``ArticleWriter`` implementations.
+
+    The HTML writer (a later Phase 2 lane) should read markers from
+    ``images`` and not add fields here.
+    """
+
+    source: str = "article.md"
+    images: tuple[ImageRef, ...] = ()
+    cover: str | None = None
