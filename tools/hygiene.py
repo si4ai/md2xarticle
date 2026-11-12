@@ -146,14 +146,15 @@ _POSIX_HOME_RE = re.compile(
     r"([^\\/\s\"'`<>()\[\]{}:;,|]*)"
 )
 # WSL UNC shares: the legacy wsl$ host and the current wsl.localhost
-# host, written with backslashes or forward slashes.
+# host, written with backslashes or forward slashes. The "//wsl" form
+# is a share, not a URL: a lookbehind skips https://wsl.localhost/...
 _WSL_RE = re.compile(
-    r"(?:\\\\|//)" + _WSL + r"(?:\$|\.localhost)[\\/]+\S+",
+    r"(?:\\\\|(?<!:)//)" + _WSL + r"(?:\$|\.localhost)[\\/]+\S+",
     re.IGNORECASE,
 )
 # Windows user folders seen from inside WSL: /mnt/<drive>/Users/<name>.
 _WSL_MNT_RE = re.compile(
-    r"(?<![\w.~-])/mnt/[A-Za-z]/" + _USERS + r"/([^\\/\s\"'`<>()\[\]{}:;,|]*)",
+    r"(?<![\w.~-])/mnt/+[A-Za-z]/+" + _USERS + r"/+([^\\/\s\"'`<>()\[\]{}:;,|]*)",
     re.IGNORECASE,
 )
 _PEM_RE = re.compile(
@@ -165,6 +166,10 @@ _AWS_ID_RE = re.compile(
 _GITHUB_PAT_RE = re.compile(
     r"(?<![A-Za-z0-9_-])(?:gh[pousr]_[A-Za-z0-9]{20,}|"
     r"github" + r"_pat_[A-Za-z0-9_]{20,})(?![A-Za-z0-9_-])"
+)
+_GITLAB_PAT_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])" + "gl" + "pat-"
+    r"[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
 )
 _PYPI_RE = re.compile(
     r"(?<![A-Za-z0-9_-])pypi-AgE[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
@@ -231,6 +236,7 @@ def scan_text(text: str, deny: tuple[str, ...]) -> list[str]:
     if (
         _AWS_ID_RE.search(text)
         or _GITHUB_PAT_RE.search(text)
+        or _GITLAB_PAT_RE.search(text)
         or _PYPI_RE.search(text)
         or _SLACK_RE.search(text)
         or _SK_RE.search(text)

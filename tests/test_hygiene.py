@@ -83,3 +83,37 @@ def test_git_pointer_file_is_not_scanned(tmp_path):
     (tmp_path / "ok.md").write_text("A clean file.\n", encoding="utf-8")
     proc = scan(tmp_path, env=_env_without_deny())
     assert proc.returncode == 0, proc.stdout + proc.stderr
+    # A real finding in a normal file is still reported.
+    (tmp_path / "notes.md").write_text("/" + "ho" + "me/alice/notes.md\n", encoding="utf-8")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 1
+    assert "- home path in notes.md" in proc.stdout
+    assert "- home path in .git" not in proc.stdout
+
+
+def test_wsl_url_is_clean_doubled_mnt_and_glpat_are_flagged(tmp_path):
+    clean = tmp_path / "clean"
+    clean.mkdir()
+    (clean / "doc.md").write_text(
+        "See https://" + "wsl" + ".localhost/Ubuntu\n", encoding="utf-8"
+    )
+    proc = scan(clean, env=_env_without_deny())
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    dirty = tmp_path / "dirty"
+    dirty.mkdir()
+    (dirty / "paths.md").write_text(
+        "/mnt//c/" + "Users" + "/alice/file\n", encoding="utf-8"
+    )
+    proc = scan(dirty, env=_env_without_deny())
+    assert proc.returncode == 1
+    assert "- home path in paths.md" in proc.stdout
+
+    token = "gl" + "pat-" + "Ab3_" * 8
+    secrets = tmp_path / "secrets"
+    secrets.mkdir()
+    (secrets / "keys.md").write_text(f"token {token}\n", encoding="utf-8")
+    proc = scan(secrets, env=_env_without_deny())
+    assert proc.returncode == 1
+    assert "- secret in keys.md" in proc.stdout
+    assert token not in proc.stdout + proc.stderr

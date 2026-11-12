@@ -2,7 +2,7 @@
 
 Markdown in, X Article out. One command turns a Markdown file, Mermaid diagrams included, into a paste-ready article body plus polished images for the X (Twitter) Article editor.
 
-**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring and `outline` are implemented. The full conversion (HTML, outline.txt, manifest) is not. This README is the v0 design for whoever builds it, human or bot.
+**Status:** Phase 1 `diagrams`, Phase 2 heading restructuring and `outline`, and the `check` privacy scan are implemented. The full conversion (HTML, outline.txt, manifest) is not. This README is the v0 design for whoever builds it, human or bot.
 
 ### If you are an agent
 
@@ -299,7 +299,7 @@ tests/
 
 ## Planned commands
 
-`diagrams` and `outline` are implemented. The full conversion and `check` are not yet. Defaults match the [quick start](#just-works).
+`diagrams`, `outline`, and `check` are implemented. The full conversion is not yet. Defaults match the [quick start](#just-works).
 
 ### `md2xarticle ARTICLE.md [-o OUT] [options]`
 
@@ -358,13 +358,15 @@ then upload images in order at each [Image NN] marker.
 }
 ```
 
+On the full conversion the `privacy_findings` key is always present. On `diagrams --json` it is included only when `--check-privacy` is set.
+
 ### `md2xarticle diagrams ARTICLE.md [-o OUT] [--cover]`
 
 Images only: render every Mermaid block to a polished, centered 16:9 PNG, plus an optional 5:2 cover. This is the Phase 1 milestone and is useful on its own for an article whose text is already in the X editor and only needs better images. `--only`, `--theme`, `--custom-path`, `--size`, `--renderer`, and `--check-privacy` apply here too. `--check-privacy` scans the source article after writing; images are still written.
 
 ### `md2xarticle check ARTICLE.md`
 
-Privacy scan only. Prints findings with line numbers. Writes nothing. `--deny-list FILE` or `MD2XARTICLE_PRIVACY_DENYLIST` supplies the optional local deny-list. `--json` prints the same findings as a list. Exit 1 on findings, 0 if clean, 2 on a usage error (missing file or deny-list).
+Implemented. Privacy scan only. Prints findings with line numbers. Writes nothing. `--deny-list FILE` or `MD2XARTICLE_PRIVACY_DENYLIST` supplies the optional local deny-list. `--json` prints the same findings as a list. Exit 1 on findings, 0 if clean, 2 on a usage error (missing file or deny-list).
 
 ### `md2xarticle outline ARTICLE.md`
 
@@ -380,7 +382,7 @@ md2xarticle article.md --custom-path article.toml
 
 With no flag, the built-in defaults apply: theme `mono`, and Mermaid source is rendered as written.
 
-The file may set the theme (palette, corner radius, spacing, label wrapping, gitGraph label rotation; font later), per-diagram layout overrides, cover choice and text, and image sizes. A value in the file wins over the matching flag (`--theme`, `--size`), and the run prints a warning when that happens.
+The file may set the theme (palette, corner radius, spacing, label wrapping, gitGraph label rotation; font later), per-diagram layout overrides, cover choice and text, and image sizes. `[style] spacing`, `node_spacing`, and `rank_spacing` apply to compact/dagre flowchart renders and to sequence diagrams; the default ELK flowchart layout ignores them. A value in the file wins over the matching flag (`--theme`, `--size`), and the run prints a warning when that happens.
 
 The file is read with the standard library `tomllib`, so no extra TOML dependency is needed.
 
@@ -395,7 +397,7 @@ cover_subtitle = ""            # "" turns the front matter subtitle off
 
 [style]
 corner_radius = 8
-spacing = 16
+spacing = 16                   # node padding; compact/dagre and sequence only (ELK ignores it)
 wrap_width = 280               # flowchart label wrapping, px (default: automatic)
 rotate_commit_labels = false   # gitGraph: level commit labels (default: rotated)
 compact_tall = true            # tall flowcharts and sequences may render compact
@@ -491,15 +493,16 @@ Decided:
 
 - **`--custom-path FILE`.** One TOML customization file per run, typically one file per article. No flag means built-in defaults (theme `mono`, Mermaid rendered as written). See [Customization](#customization).
 - **Default theme.** `mono` (neutral gray on white), picked by the owner from the theme samples. `soft`, `warm`, `x-light`, and `x-dark` are options, and Mermaid's own `default` theme is not used. Further look-and-feel is customization.
+- **Heading map.** Approved by the owner on 2026-11-12. `--heading-map` is `auto`, `shifted`, or `flat`. `auto` picks `shifted` when a `#` heading is present, otherwise `flat`. Two or more same-level `####` or deeper headings with nothing between them become list items. The first `#` is always left out of the body as the title; the title text prefers front matter `title` when both exist. A leftover `#` under `shifted` is a forced fallback: the run warns and exits 1.
+- **Privacy scan readings.** Approved by the owner on 2026-11-12. The product deny-list path is `--deny-list` or `MD2XARTICLE_PRIVACY_DENYLIST`, separate from the repo hygiene list. Placeholder emails (`example.com` and similar) and placeholder home paths (`/home/<user>/`) are ignored. Findings print kind, file, and line, never the matched text. Phone numbers are formatted shapes only (separators required). A PEM block is reported as kind `secret`. `--check-privacy` scans the source article only, not written output. "Bearer tokens" means an HTTP `Bearer <token>` shape, in addition to API-key shapes.
+- **`[style]` spacing keys.** `[style] spacing`, `node_spacing`, and `rank_spacing` apply to compact/dagre flowchart renders and to sequence diagrams. The default ELK flowchart layout ignores them.
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:
 
-- **Subcommands `check` and `outline`,** alongside `diagrams`.
-- **Flags `--heading-map`, `--only`, `--open`, and `--size`.**
+- **Flags `--only`, `--open`, and `--size`.**
 - **Default image sizes:** 1600x900 for body images and 1500x600 for the cover.
 - **Exit code 1** for a failed diagram or for privacy findings.
 - **Caption order:** Mermaid `title`, then a `%% caption:` comment, then a following "Figure:" line, then the nearest heading.
-- **Privacy deny-list:** an optional local list of names for the privacy scan, kept out of the repo.
 
 ## Working on this repo (for agents)
 

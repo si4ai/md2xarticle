@@ -86,6 +86,7 @@ def test_no_false_positive_on_example_paths_urls_or_code():
         [
             "Write to out/ and images/01.png.",
             "See https://example.com/users/alice and https://github.com/org/repo.",
+            "Docs: https://" + "wsl" + ".localhost/Ubuntu is a website, not a share.",
             "Mail someone" + "@" + "example.com.",
             "See /home/<user>/ and C:\\Users\\<user>\\ and /mnt/c/Users/<user>/ shares.",
             "Set token = 'redacted'; a short sk-test is not a key; Bearer token docs.",
@@ -123,3 +124,17 @@ def test_resolve_deny_path_flag_wins_over_env(tmp_path: Path, monkeypatch):
 
 def test_finding_is_comparable():
     assert Finding(line=1, kind="email") == Finding(line=1, kind="email")
+
+def test_review_followups_wsl_url_mnt_slashes_and_glpat():
+    """Soft warnings from the #11 review: URL host is clean, doubled
+    slashes and glpat- tokens are flagged."""
+    url = "See https://" + "wsl" + ".localhost/Ubuntu and http://" + "wsl" + ".localhost/Ubuntu/path."
+    assert kinds(url) == []
+    share = "Open //" + "wsl" + ".localhost/Ubuntu/home/alice"
+    assert kinds(share) == [(1, "home path")]
+    doubled = "Path /mnt//c/" + "Users" + "/alice/file and /mnt/c//" + "Users" + "/alice/file"
+    assert kinds(doubled) == [(1, "home path")]
+    token = "gl" + "pat-" + "Ab3_" * 8
+    findings = scan_text(f"token {token}\n", ())
+    assert [(item.line, item.kind) for item in findings] == [(1, "secret")]
+    assert token not in format_findings("article.md", findings)
