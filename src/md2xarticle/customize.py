@@ -7,6 +7,7 @@ Schema (every key optional)::
     cover_size = "1500x600"   # cover, must be 5:2
     cover = "diagram:2"       # "diagram:N" or "title" (title only)
     cover_title = "Title"     # "" turns the title off
+    cover_subtitle = "Sub"    # "" turns the subtitle off
 
     [style]
     corner_radius = 8         # px, node corner radius
@@ -14,6 +15,8 @@ Schema (every key optional)::
     node_spacing = 60         # px, between nodes in a rank
     rank_spacing = 70         # px, between ranks
     edge_width = 2.0          # px
+    wrap_width = 320          # px, flowchart label wrapping (default: automatic)
+    rotate_commit_labels = true  # gitGraph: false draws commit labels level
     margin = 0.06             # fraction of each canvas side, 0.04 to 0.25
 
     [palette]                 # #RRGGBB colors
@@ -52,12 +55,22 @@ _TOP_KEYS = {
     "cover_size",
     "cover",
     "cover_title",
+    "cover_subtitle",
     "style",
     "palette",
     "theme_variables",
     "diagrams",
 }
-_STYLE_KEYS = {"corner_radius", "spacing", "node_spacing", "rank_spacing", "edge_width", "margin"}
+_STYLE_KEYS = {
+    "corner_radius",
+    "spacing",
+    "node_spacing",
+    "rank_spacing",
+    "edge_width",
+    "margin",
+    "wrap_width",
+    "rotate_commit_labels",
+}
 _PALETTE_TO_VARS = {
     "primary": ("primaryColor", "mainBkg", "actorBkg"),
     "primary_border": ("primaryBorderColor", "nodeBorder", "actorBorder"),
@@ -84,6 +97,7 @@ class Customization:
     cover_diagram: int | None = None
     cover_title_only: bool = False
     cover_title: str | None = None
+    cover_subtitle: str | None = None
     style: dict[str, Any] = field(default_factory=dict)
     palette: dict[str, str] = field(default_factory=dict)
     theme_variables: dict[str, Any] = field(default_factory=dict)
@@ -117,6 +131,10 @@ class Customization:
             flow["nodeSpacing"] = s["node_spacing"]
         if "rank_spacing" in s:
             flow["rankSpacing"] = s["rank_spacing"]
+        if "wrap_width" in s:
+            flow["wrappingWidth"] = s["wrap_width"]
+        if "rotate_commit_labels" in s:
+            changes["git_graph"] = {**theme.git_graph, "rotateCommitLabel": s["rotate_commit_labels"]}
         return theme.with_overrides(theme_variables=tv, flowchart=flow, **changes)
 
 
@@ -181,10 +199,11 @@ def from_dict(data: dict[str, Any], where: str = "customization") -> Customizati
                 raise UsageError(f"{where}: cover diagram index starts at 1")
         else:
             raise UsageError(f"{where}: cover must be 'diagram:N' or 'title', got {cover!r}")
-    if "cover_title" in data:
-        if not isinstance(data["cover_title"], str):
-            raise UsageError(f"{where}: cover_title must be a string")
-        kw["cover_title"] = data["cover_title"]
+    for key in ("cover_title", "cover_subtitle"):
+        if key in data:
+            if not isinstance(data[key], str):
+                raise UsageError(f"{where}: {key} must be a string")
+            kw[key] = data[key]
 
     style = data.get("style", {})
     if not isinstance(style, dict):
@@ -194,6 +213,12 @@ def from_dict(data: dict[str, Any], where: str = "customization") -> Customizati
     for key in ("corner_radius", "spacing", "node_spacing", "rank_spacing"):
         if key in style:
             checked[key] = _int_range(style[key], 0, 400, f"{where} [style] {key}")
+    if "rotate_commit_labels" in style:
+        if not isinstance(style["rotate_commit_labels"], bool):
+            raise UsageError(f"{where} [style] rotate_commit_labels must be true or false")
+        checked["rotate_commit_labels"] = style["rotate_commit_labels"]
+    if "wrap_width" in style:
+        checked["wrap_width"] = _int_range(style["wrap_width"], 80, 1000, f"{where} [style] wrap_width")
     if "edge_width" in style:
         checked["edge_width"] = _num_range(style["edge_width"], 0.5, 12, f"{where} [style] edge_width")
     if "margin" in style:

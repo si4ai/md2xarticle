@@ -68,5 +68,8 @@
     "actorMargin": 50,
     "messageMargin": 40,
     "boxMargin": 16
+  },
+  "git_graph": {
+    "rotateCommitLabel": true
   }
 }

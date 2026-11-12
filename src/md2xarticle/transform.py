@@ -8,6 +8,16 @@ _HEADER = re.compile(r"^(\s*)(flowchart|graph)(\s+)(TD|TB|BT|RL|LR)\b", re.IGNOR
 _BARE_HEADER = re.compile(r"^(\s*)(flowchart|graph)\s*$", re.IGNORECASE)
 
 
+def is_flowchart(source: str) -> bool:
+    """True when the first statement is a flowchart or graph header."""
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("%%"):
+            continue
+        return bool(_HEADER.match(line) or _BARE_HEADER.match(line))
+    return False
+
+
 def set_flowchart_direction(source: str, direction: str) -> tuple[str, bool]:
     """Rewrite the direction of a flowchart or graph header.
 
