@@ -26,6 +26,11 @@ class ImageComposer(ABC):
     def center_tolerance(self) -> int:
         return 4
 
+    def diagram_box(self, size: tuple[int, int]) -> tuple[int, int]:
+        """The largest box the diagram is fitted into on a ``size`` canvas."""
+        m = self.theme.margin
+        return round(size[0] * (1 - 2 * m)), round(size[1] * (1 - 2 * m))
+
     @abstractmethod
     def compose(self, image: RenderedImage | None, size: tuple[int, int]) -> Image.Image:
         """Return an RGB image of exactly ``size``."""

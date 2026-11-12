@@ -94,6 +94,15 @@ class Pipeline:
         self.make_cover = make_cover
         self.platform = platform
         self.theme = theme
+        # Renders by (source, wrapping width): the cover reuses a body render
+        # without drawing it again, yet decides the wrap against its own box.
+        self._renders: dict[tuple[str, int | None], RenderedImage] = {}
+
+    def _render_once(self, source: str, theme: Theme) -> RenderedImage:
+        key = (source, theme.flowchart.get("wrappingWidth"))
+        if key not in self._renders:
+            self._renders[key] = self.renderer.render(source, theme)
+        return self._renders[key]
 
     def _source(self, block: MermaidBlock, opts: DiagramsOptions, warnings: list[str]) -> str:
         override = opts.overrides.get(block.index)
@@ -107,10 +116,6 @@ class Pipeline:
             )
         return new
 
-    def _box(self, size: tuple[int, int]) -> tuple[int, int]:
-        m = self.theme.margin
-        return round(size[0] * (1 - 2 * m)), round(size[1] * (1 - 2 * m))
-
     def _scale(self, img: RenderedImage, box: tuple[int, int]) -> float:
         w, h = img.native_size
         return min(box[0] / max(1, w), box[1] / max(1, h), self.theme.max_scale)
@@ -118,7 +123,7 @@ class Pipeline:
     def _render(self, source: str, box: tuple[int, int]) -> RenderedImage:
         """Render; for a height-limited flowchart, also try wider label wrapping
         and keep whichever draws larger. Fixed candidates keep output deterministic."""
-        img = self.renderer.render(source, self.theme)
+        img = self._render_once(source, self.theme)
         if "wrappingWidth" in self.theme.flowchart or not is_flowchart(source):
             return img
         w, h = img.native_size
@@ -126,13 +131,19 @@ class Pipeline:
             return img  # already limited by the width; wider labels would shrink it
         wide = self.theme.with_overrides(flowchart={**self.theme.flowchart, "wrappingWidth": WIDE_WRAP})
         try:
-            alt = self.renderer.render(source, wide)
+            alt = self._render_once(source, wide)
         except DiagramRenderError:
             return img
         return alt if self._scale(alt, box) >= self._scale(img, box) else img
 
     def _text_check(
-        self, block: MermaidBlock, img: RenderedImage, box: tuple[int, int], opts: DiagramsOptions, warnings: list[str]
+        self,
+        label: str,
+        block: MermaidBlock,
+        img: RenderedImage,
+        box: tuple[int, int],
+        opts: DiagramsOptions,
+        warnings: list[str],
     ) -> None:
         scale = self._scale(img, box)
         if scale >= MIN_TEXT_SCALE:
@@ -142,7 +153,7 @@ class Pipeline:
         if is_flowchart(block.source) and (override is None or override.layout is None):
             hint = f"try layout = \"LR\" for id = {block.index} under [[diagrams]] in a --custom-path file, or split it"
         warnings.append(
-            f"image {block.index:02d}: the diagram is scaled to {scale:.2f}x, so its text is small; {hint}"
+            f"{label}: the diagram is scaled to {scale:.2f}x, so its text is small; {hint}"
         )
 
     def _check(self, label: str, image: Image.Image, composer: ImageComposer, warnings: list[str]) -> None:
@@ -167,9 +178,8 @@ class Pipeline:
             if not 1 <= idx <= total:
                 result.warnings.append(f"customization: diagram {idx} does not exist")
 
-        rendered: dict[int, RenderedImage] = {}
         images_dir = opts.out_dir / "images"
-        box = self._box(opts.size)
+        box = self.body.diagram_box(opts.size)
         for block in doc.blocks:
             if opts.only is not None and block.index not in opts.only:
                 continue
@@ -180,8 +190,7 @@ class Pipeline:
             except DiagramRenderError as exc:
                 item.error = str(exc)
                 continue
-            rendered[block.index] = img
-            self._text_check(block, img, box, opts, result.warnings)
+            self._text_check(f"image {block.index:02d}", block, img, box, opts, result.warnings)
             composed = self.body.compose(img, opts.size)
             name = image_name(block.index, total)
             save_png(composed, images_dir / name)
@@ -189,35 +198,37 @@ class Pipeline:
             self._check(f"image {block.index:02d}", composed, self.body, result.warnings)
 
         if opts.cover:
-            result.cover = self._cover(doc, opts, rendered, result.warnings)
+            result.cover = self._cover(doc, opts, result.warnings)
         return result
 
     def _cover(
         self,
         doc: Document,
         opts: DiagramsOptions,
-        rendered: dict[int, RenderedImage],
         warnings: list[str],
     ) -> str | None:
         title = doc.title if opts.cover_title is None else (opts.cover_title or None)
         subtitle = doc.subtitle if opts.cover_subtitle is None else (opts.cover_subtitle or None)
+        composer = self.make_cover(title, subtitle)
         image: RenderedImage | None = None
         if not opts.cover_title_only:
             idx = opts.cover_diagram or 1
             block = next((b for b in doc.blocks if b.index == idx), None)
             if block is None:
                 warnings.append(f"cover: diagram {idx} does not exist")
-            elif idx in rendered:
-                image = rendered[idx]
             else:
+                box = composer.diagram_box(opts.cover_size)
+                # Source warnings stay quiet here; the body pass reports them.
+                source = self._source(block, opts, [])
                 try:
-                    image = self._render(self._source(block, opts, []), self._box(opts.cover_size))
+                    image = self._render(source, box)
                 except DiagramRenderError:
                     warnings.append(f"cover: diagram {idx} failed to render")
+                else:
+                    self._text_check("cover", block, image, box, opts, warnings)
         if image is None and not title and not subtitle:
             warnings.append("cover: no diagram and no title; cover skipped")
             return None
-        composer = self.make_cover(title, subtitle)
         cover = composer.compose(image, opts.cover_size)
         save_png(cover, opts.out_dir / "images" / "cover.png")
         self._check("cover", cover, composer, warnings)
