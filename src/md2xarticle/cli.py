@@ -8,14 +8,14 @@ import sys
 import traceback
 from pathlib import Path
 
-from md2xarticle import __version__, factory
+from md2xarticle import __version__, factory, outline
 from md2xarticle.customize import Customization, load, parse_size
 from md2xarticle.errors import UsageError
 from md2xarticle.pipeline import DiagramsOptions, DiagramsResult
 from md2xarticle.theme import BUILTIN_THEMES, DEFAULT_THEME
 
 EXIT_OK, EXIT_FINDINGS, EXIT_USAGE, EXIT_INTERNAL = 0, 1, 2, 3
-COMMANDS = ("diagrams",)
+COMMANDS = ("diagrams", "outline")
 
 
 def _parse_only(text: str) -> frozenset[int]:
@@ -49,6 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--renderer", default=factory.DEFAULT_RENDERER, choices=sorted(factory.RENDERERS))
     d.add_argument("--json", action="store_true", help="print a JSON summary to stdout")
     d.add_argument("-v", "--verbose", action="store_true", help="full error details")
+    outline.add_parser(sub)
     return p
 
 
@@ -178,6 +179,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help(sys.stderr)
         return EXIT_USAGE
     try:
+        if args.command == "outline":
+            return outline.run(args)
         return run_diagrams(args)
     except UsageError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -187,5 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         if getattr(args, "verbose", False):
             traceback.print_exc()
         else:
-            print(f"try:   md2xarticle diagrams {args.article} --verbose", file=sys.stderr)
+            command = args.command or "diagrams"
+            article = getattr(args, "article", "ARTICLE.md")
+            print(f"try:   md2xarticle {command} {article} --verbose", file=sys.stderr)
         return EXIT_INTERNAL

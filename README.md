@@ -2,7 +2,7 @@
 
 Markdown in, X Article out. One command turns a Markdown file, Mermaid diagrams included, into a paste-ready article body plus polished images for the X (Twitter) Article editor.
 
-**Status:** design only. Nothing is implemented yet. This README is the v0 design for whoever builds it, human or bot.
+**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring and `outline` are implemented. The full conversion (HTML, outline.txt, manifest) is not. This README is the v0 design for whoever builds it, human or bot.
 
 ### If you are an agent
 
@@ -116,6 +116,8 @@ Otherwise the mapping is:
 | `####` and deeper | Bold lead-in paragraph, or a list item when siblings form a list |
 
 The tool picks the mapping, writes it to `outline.txt`, and prints it, so a human or bot can check the structure before pasting. `--heading-map` overrides the choice.
+
+This restructuring is implemented; `md2xarticle outline ARTICLE.md` prints the result.
 
 ### Diagrams
 
@@ -297,7 +299,7 @@ tests/
 
 ## Planned commands
 
-Nothing below is implemented yet. Defaults match the [quick start](#just-works).
+`diagrams` and `outline` are implemented. The full conversion and `check` are not yet. Defaults match the [quick start](#just-works).
 
 ### `md2xarticle ARTICLE.md [-o OUT] [options]`
 
@@ -366,7 +368,7 @@ Privacy scan only. Prints findings with line numbers. Writes nothing.
 
 ### `md2xarticle outline ARTICLE.md`
 
-Prints the restructured heading outline only, so the structure can be checked before converting.
+Implemented. Prints the restructured heading outline only, so the structure can be checked before converting.
 
 ### Customization
 

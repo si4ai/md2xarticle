@@ -268,6 +268,8 @@ def iter_files(root: Path, excluded: set[Path]):
             if name not in SKIP_DIR_NAMES and not name.endswith(".egg-info")
         ]
         for name in filenames:
+            if name in SKIP_DIR_NAMES:
+                continue
             path = Path(dirpath) / name
             if path.suffix.lower() in SKIP_SUFFIXES:
                 continue

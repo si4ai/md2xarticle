@@ -20,10 +20,27 @@ class MermaidBlock:
 
 
 @dataclass(frozen=True)
+class Heading:
+    """One Markdown heading.
+
+    ``level`` is 1 for ``#``, 2 for ``##``, and so on. ``line`` is the
+    1-based line in the Markdown file. ``preceded_by_content`` is True
+    when a non-heading block sits between the previous heading (or the
+    start of the body) and this one.
+    """
+
+    level: int
+    text: str
+    line: int
+    preceded_by_content: bool = False
+
+
+@dataclass(frozen=True)
 class Document:
     title: str | None = None
     subtitle: str | None = None
     blocks: tuple[MermaidBlock, ...] = ()
+    headings: tuple[Heading, ...] = ()
 
 
 @dataclass(frozen=True)
