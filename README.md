@@ -431,9 +431,13 @@ try:   md2xarticle diagrams article.md --only 3 --verbose
 ```
 
 ```
-error: renderer 'mmdc' is not installed
-try:   pip install "md2xarticle[mmdc]"   (needs Node and Chromium)
-or:    md2xarticle article.md --renderer mermaidx
+error: renderer 'mermaidx' is not installed
+try:   pip install md2xarticle
+```
+
+```
+error: renderer 'mmdc' is planned and not available yet
+try:   md2xarticle diagrams article.md --renderer mermaidx
 ```
 
 ## Testing

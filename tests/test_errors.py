@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from md2xarticle import cli, factory
 from md2xarticle.errors import format_error
 from md2xarticle.theme import BUILTIN_THEMES, DEFAULT_THEME
@@ -57,9 +59,10 @@ def test_unavailable_planned_renderer(capsys, tmp_path):
     md = _article(tmp_path)
     code, _, err = run(capsys, "diagrams", str(md), "-o", str(tmp_path / "out"), "--renderer", "mmdc")
     assert code == 2
-    assert "error: renderer 'mmdc' is not installed" in err
-    assert 'try:   pip install "md2xarticle[mmdc]"   (needs Node and Chromium)' in err
-    assert f"or:    md2xarticle diagrams {md} --renderer mermaidx" in err
+    assert "error: renderer 'mmdc' is planned and not available yet" in err
+    assert f"try:   md2xarticle diagrams {md} --renderer mermaidx" in err
+    assert "pip install" not in err  # the [mmdc] extra does not exist yet
+    assert "\nor:" not in err
 
 
 def test_unavailable_default_renderer(capsys, tmp_path, monkeypatch):
@@ -73,7 +76,7 @@ def test_unavailable_default_renderer(capsys, tmp_path, monkeypatch):
     assert code == 2
     assert "error: renderer 'mermaidx' is not installed" in err
     assert "try:   pip install md2xarticle" in err
-    assert f"or:    md2xarticle diagrams {md} --renderer mermaidx" in err
+    assert "\nor:" not in err  # never suggest the renderer that just failed
 
 
 def test_missing_input_file(capsys, tmp_path):
@@ -159,3 +162,40 @@ def test_internal_error_no_traceback_unless_verbose(capsys, tmp_path, monkeypatc
     assert "error: internal error: RuntimeError: synthetic failure" in err
     assert "Traceback" in err
     assert "RuntimeError: synthetic failure" in err
+
+
+@pytest.mark.parametrize("command", ["check", "outline"])
+def test_subcommand_missing_file_uses_contract(capsys, tmp_path, command):
+    missing = tmp_path / "article.md"
+    code, _, err = run(capsys, command, str(missing))
+    assert code == 2
+    assert f"error: file not found: {missing}" in err
+    assert f"try:   md2xarticle {command} {missing}" in err
+    assert "Traceback" not in err
+
+
+def _run_exit(capsys, *args: str) -> tuple[int, str, str]:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(list(args))
+    out, err = capsys.readouterr()
+    return int(exc.value.code), out, err
+
+
+@pytest.mark.parametrize("command", ["check", "outline"])
+def test_subcommand_argparse_errors_name_the_subcommand(capsys, command):
+    code, _, err = _run_exit(capsys, command)
+    assert code == 2
+    assert "error: the following arguments are required" in err
+    assert f"try:   md2xarticle {command} article.md" in err
+    code, _, err = _run_exit(capsys, command, "x.md", "--bogus")
+    assert code == 2
+    assert "error: unrecognized arguments: --bogus" in err
+    assert "try:   md2xarticle --help" in err  # unknown flags surface on the top-level parser
+
+
+def test_check_is_a_command_not_the_phase2_stub(capsys, tmp_path):
+    md = tmp_path / "article.md"
+    md.write_text("# Title\n\nPlain text.\n", encoding="utf-8")
+    code, out, err = run(capsys, "check", str(md))
+    assert "Phase 2" not in err
+    assert code in (0, 1)

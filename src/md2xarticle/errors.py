@@ -10,12 +10,12 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-# Planned renderer names get an install hint even before their extras ship.
+# Planned renderer names are recognised before they ship. Only renderers
+# whose install command works today get a pip hint; the rest point at the
+# working fallback until their extras land in pyproject.toml.
 KNOWN_RENDERERS = ("mermaidx", "mmdc", "mmdr")
 RENDERER_INSTALL_HINTS = {
     "mermaidx": "pip install md2xarticle",
-    "mmdc": 'pip install "md2xarticle[mmdc]"   (needs Node and Chromium)',
-    "mmdr": 'pip install "md2xarticle[mmdr]"',
 }
 
 
@@ -72,15 +72,14 @@ def diagrams_command(article: str | Path, *flags: str) -> str:
 
 
 def renderer_usage(name: str, article: str | Path = "article.md") -> UsageError:
-    """Unknown renderer, or a known renderer that is not installed."""
+    """Unknown renderer, a planned one not shipped yet, or one not installed."""
     fallback = diagrams_command(article, "--renderer", "mermaidx")
     hint = RENDERER_INSTALL_HINTS.get(name)
     if hint is not None:
-        return UsageError(
-            f"renderer {name!r} is not installed",
-            try_cmd=hint,
-            or_cmd=fallback,
-        )
+        # The fallback is this same renderer, so an ``or:`` line would loop.
+        return UsageError(f"renderer {name!r} is not installed", try_cmd=hint)
+    if name in KNOWN_RENDERERS:
+        return UsageError(f"renderer {name!r} is planned and not available yet", try_cmd=fallback)
     known = ", ".join(KNOWN_RENDERERS)
     return UsageError(
         f"unknown renderer {name!r}; known renderers: {known}",
@@ -125,11 +124,16 @@ def usage_retry(
     return f"md2xarticle {cmd} --help"
 
 
-def argparse_retry(message: str) -> str:
-    """A ``try:`` command for an argparse usage error."""
+def argparse_retry(message: str, prog: str = "md2xarticle") -> str:
+    """A ``try:`` command for an argparse usage error.
+
+    ``prog`` is the failing parser's prog (``md2xarticle check`` for a
+    subcommand), so the hint names the command the user actually ran.
+    """
     low = message.lower()
     if "diagram numbers start at 1" in low or "expected n[" in low:
         return "md2xarticle diagrams article.md --only 1"
     if "required" in low and "article.md" in low:
-        return "md2xarticle diagrams article.md"
-    return "md2xarticle --help"
+        sub = prog if prog != "md2xarticle" else "md2xarticle diagrams"
+        return f"{sub} article.md"
+    return f"{prog} --help"

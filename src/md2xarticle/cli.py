@@ -24,7 +24,7 @@ class _ErrorParser(argparse.ArgumentParser):
     """Argparse errors use the same ``error:`` / ``try:`` shape as UsageError."""
 
     def error(self, message: str) -> None:
-        print_error(message, try_cmd=argparse_retry(message))
+        print_error(message, try_cmd=argparse_retry(message, self.prog))
         self.exit(EXIT_USAGE)
 
 
