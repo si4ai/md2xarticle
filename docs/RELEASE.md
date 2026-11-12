@@ -56,7 +56,7 @@ bot can do the same only with the permissions below.
 
 Do these steps in the GitHub and PyPI UIs. They are not part of the workflow.
 
-1. Open `si4ai/md2xarticle` on GitHub. Go to **Settings → Environments →
+1. Open `si4ai/md2xarticle` on GitHub. Go to **Settings -> Environments ->
    New environment**.
 2. Create an environment named `testpypi`. Under **Deployment branches and
    tags**, choose **Selected branches and tags** and add a branch rule for
