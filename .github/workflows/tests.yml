@@ -85,3 +85,32 @@ jobs:
           tar -xzf "$archive" actionlint
       - name: Lint workflows
         run: ./actionlint -color
+
+  offline:
+    # The conversion with networking cut by the kernel, not by a Python patch:
+    # catches native code or subprocesses that a socket monkeypatch can't see.
+    name: offline (ubuntu-latest, 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - name: Install (network allowed here)
+        run: python -m pip install --only-binary mermaidx,novasvg,quickjs-ng,Pillow .
+      - name: Control - the probes reach the network outside the namespace
+        run: python tests/offline_run.py online-control
+      - name: Allow unprivileged user namespaces
+        # Ubuntu 24.04 runners restrict them through AppArmor by default.
+        run: |
+          if ! unshare -rn true 2>/dev/null; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          unshare -rn true
+      - name: Prove no network, then convert, inside unshare -rn
+        run: |
+          mkdir -p "$RUNNER_TEMP/offline"
+          unshare -rn python tests/offline_run.py offline-convert "$RUNNER_TEMP/offline/out"
