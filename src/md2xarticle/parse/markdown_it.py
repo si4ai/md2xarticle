@@ -107,8 +107,10 @@ def _mermaid_blocks(tokens, offset: int) -> tuple[MermaidBlock, ...]:
             events.append(("heading", text, None))
             i += 1
             continue
-        if _is_mermaid_fence(tok) and depth == 0:
-            events.append(("mermaid", None, tok))
+        if _is_mermaid_fence(tok):
+            # Fences inside list items or blockquotes are diagrams too; they
+            # take no anchor or Figure caption from the surrounding text.
+            events.append(("mermaid" if depth == 0 else "nested", None, tok))
             i += 1
             continue
         if tok.type == "paragraph_open" and depth == 0:
@@ -137,13 +139,18 @@ def _mermaid_blocks(tokens, offset: int) -> tuple[MermaidBlock, ...]:
         if kind == "heading":
             last_heading = text or None
             continue
-        if kind != "mermaid" or tok is None or tok.map is None:
+        if kind not in ("mermaid", "nested") or tok is None or tok.map is None:
+            continue
+        line = offset + tok.map[0] + 2
+        if kind == "nested":
+            blocks.append(
+                MermaidBlock(index=len(blocks) + 1, source=tok.content, line=line, nearest_heading=last_heading)
+            )
             continue
         prev_kind, prev_text, _ = events[idx - 1] if idx else ("other", None, None)
         next_kind, next_text, _ = events[idx + 1] if idx + 1 < len(events) else ("other", None, None)
         anchor = prev_text if prev_kind == "paragraph" and prev_text else None
         figure = next_text if next_kind == "paragraph" and figure_caption(next_text) else None
-        line = offset + tok.map[0] + 2
         blocks.append(
             MermaidBlock(
                 index=len(blocks) + 1,

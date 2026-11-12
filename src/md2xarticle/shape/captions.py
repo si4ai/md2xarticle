@@ -12,9 +12,11 @@ from md2xarticle.model import MermaidBlock
 
 _FRONT_MATTER = re.compile(r"\A---[ \t]*\n(.*?\n)(?:---|\.\.\.)[ \t]*(?:\n|\Z)", re.DOTALL)
 _YAML_TITLE = re.compile(r"^title:[ \t]*(.+?)[ \t]*$", re.MULTILINE | re.IGNORECASE)
-_TITLE_LINE = re.compile(r"^\s*title(?:\s+|:\s+)(.+?)\s*$", re.MULTILINE | re.IGNORECASE)
-_PIE_TITLE = re.compile(r"^\s*pie\b(?:\s+\S+)*\s+title\s+(.+?)\s*$", re.MULTILINE | re.IGNORECASE)
-_CAPTION_COMMENT = re.compile(r"^\s*%%\s*caption\s*:\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE)
+# Line-scoped patterns: [ \t] never crosses a newline, so a bare ``title``
+# line cannot swallow the next line as its caption.
+_TITLE_LINE = re.compile(r"^[ \t]*title(?:[ \t]+|:[ \t]+)(\S.*?)[ \t]*$", re.MULTILINE | re.IGNORECASE)
+_PIE_TITLE = re.compile(r"^[ \t]*pie\b(?:[ \t]+\S+)*[ \t]+title[ \t]+(\S.*?)[ \t]*$", re.MULTILINE | re.IGNORECASE)
+_CAPTION_COMMENT = re.compile(r"^[ \t]*%%[ \t]*caption[ \t]*:[ \t]*(\S.*?)[ \t]*$", re.MULTILINE | re.IGNORECASE)
 
 _FIGURE_PATTERNS = (
     re.compile(r"^\*Figure:\s*(.+?)\*$", re.IGNORECASE),

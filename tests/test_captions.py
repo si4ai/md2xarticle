@@ -90,3 +90,10 @@ def test_parser_attaches_a_following_figure_line():
     assert doc.blocks[0].figure_text == "Figure: Request flow"
     assert doc.blocks[0].nearest_heading == "Section"
     assert caption_for(doc.blocks[0], 1) == "Request flow"
+
+
+def test_bare_title_line_does_not_swallow_next_line():
+    assert mermaid_title("title\nflowchart LR\n  A-->B\n") is None
+    assert mermaid_title("flowchart LR\n  title   \n  A-->B\n") is None
+    assert mermaid_caption_comment("%% caption:\nflowchart LR\n") is None
+    assert mermaid_title("sequenceDiagram\n\ttitle\tTabbed name\n") == "Tabbed name"

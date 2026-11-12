@@ -58,3 +58,34 @@ def test_empty_document():
     assert article.source == "empty.md"
     assert article.images == ()
     assert article.cover is None
+
+
+NESTED = {
+    "bullet list": "Intro.\n\n- Step one:\n\n  ```mermaid\n  flowchart LR\n    A-->B\n  ```\n",
+    "ordered list": "Intro.\n\n1. Step one:\n\n   ```mermaid\n   flowchart LR\n     A-->B\n   ```\n",
+    "blockquote": "Intro.\n\n> Quoted:\n>\n> ```mermaid\n> flowchart LR\n>   A-->B\n> ```\n",
+}
+
+
+def test_nested_mermaid_fences_are_found():
+    for name, text in NESTED.items():
+        doc = PARSER.parse("# Title\n\n## Part\n\n" + text)
+        assert len(doc.blocks) == 1, name
+        block = doc.blocks[0]
+        assert block.source.startswith("flowchart LR\n"), name
+        assert block.line == 10, name  # first source line, 1-based
+        assert block.nearest_heading == "Part", name
+        assert block.anchor_text is None and block.figure_text is None, name
+
+
+def test_nested_and_top_level_fences_keep_reading_order():
+    text = (
+        "# Title\n\n"
+        "```mermaid\nflowchart LR\n  A-->B\n```\n\n"
+        "- item\n\n  ```mermaid\n  flowchart TD\n    C-->D\n  ```\n\n"
+        "```mermaid\npie\n  \"x\": 1\n```\n"
+    )
+    doc = PARSER.parse(text)
+    assert [b.index for b in doc.blocks] == [1, 2, 3]
+    assert [b.source.split()[0] for b in doc.blocks] == ["flowchart", "flowchart", "pie"]
+    assert doc.blocks[1].source.startswith("flowchart TD")
