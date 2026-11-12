@@ -147,6 +147,16 @@ def test_snapshot_typographic_mark_is_allowed(tmp_path):
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_snapshot_typographic_mark_is_allowed_under_pack_prefix(tmp_path):
+    """An unpacked sdist prefixes paths (md2xarticle-0.1.0/tests/snapshots/...)."""
+    snap = tmp_path / "md2xarticle-0.1.0" / "tests" / "snapshots"
+    snap.mkdir(parents=True)
+    (snap / "out.html").write_text("item " + "\u2013" + " nested\n", encoding="utf-8")
+    (tmp_path / "md2xarticle-0.1.0" / "ok.md").write_text("A clean file.\n", encoding="utf-8")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
 def test_snapshot_still_flags_bom(tmp_path):
     snap = tmp_path / "tests" / "snapshots"
     snap.mkdir(parents=True)

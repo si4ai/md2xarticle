@@ -375,7 +375,8 @@ def rel_where(path: Path, root: Path) -> str:
 
 
 def allow_typographic(where: str) -> bool:
-    return where.replace("\\", "/").startswith(SNAPSHOTS_PREFIX)
+    path = where.replace("\\", "/")
+    return f"/{SNAPSHOTS_PREFIX}" in f"/{path}/"
 
 
 def scan_tree(
