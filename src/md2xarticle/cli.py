@@ -9,6 +9,7 @@ import traceback
 from pathlib import Path
 
 from md2xarticle import __version__, check, factory, outline
+from md2xarticle.shape.markers import build_article
 from md2xarticle.customize import Customization, load, parse_size
 from md2xarticle.errors import UsageError
 from md2xarticle.pipeline import DiagramsOptions, DiagramsResult
@@ -98,10 +99,30 @@ def _options(args: argparse.Namespace, custom: Customization, out_dir: Path, war
     )
 
 
-def _summary_json(args: argparse.Namespace, out_dir: Path, result: DiagramsResult, notes: list[str], findings: list[Finding] | None = None) -> dict:
+def _write_manifest(args: argparse.Namespace, out_dir: Path, result: DiagramsResult) -> str:
+    included = {r.index: r.file for r in result.images if r.ok and r.file}
+    article = build_article(
+        result.document,
+        source=args.article.name,
+        cover=result.cover,
+        included=included,
+    )
+    paths = factory.make_writer().write(article, out_dir)
+    return paths[0].as_posix()
+
+
+def _summary_json(
+    args: argparse.Namespace,
+    out_dir: Path,
+    result: DiagramsResult,
+    notes: list[str],
+    manifest: str,
+    findings: list[Finding] | None = None,
+) -> dict:
     data = {
         "ok": not result.failed and not findings,
         "out_dir": out_dir.as_posix(),
+        "manifest": manifest,
         "images": [
             {
                 "order": r.index,
@@ -143,6 +164,7 @@ def run_diagrams(args: argparse.Namespace) -> int:
     result.warnings[:0] = warnings
     notes = platform.notes()
     findings = scan_text(text, deny) if args.check_privacy else None
+    manifest = _write_manifest(args, out_dir, result)
 
     for w in result.warnings:
         print(f"warning: {w}", file=sys.stderr)
@@ -158,7 +180,7 @@ def run_diagrams(args: argparse.Namespace) -> int:
         print(f"try:   {_retry_hint(args, r.index)}", file=sys.stderr)
 
     if args.json:
-        print(json.dumps(_summary_json(args, out_dir, result, notes, findings), indent=2))
+        print(json.dumps(_summary_json(args, out_dir, result, notes, manifest, findings), indent=2))
     else:
         print(f"md2xarticle {__version__}  diagrams {args.article.name} -> {out_dir.as_posix()}/")
         for r in result.images:
@@ -169,7 +191,10 @@ def run_diagrams(args: argparse.Namespace) -> int:
         ok = sum(1 for r in result.images if r.ok)
         if not result.images:
             print("No Mermaid diagrams found.")
-        print(f"Wrote {ok} image(s){' and a cover' if result.cover else ''} to {out_dir.as_posix()}/images/")
+        print(
+            f"Wrote {ok} image(s){' and a cover' if result.cover else ''} "
+            f"to {out_dir.as_posix()}/images/, and {manifest}"
+        )
         for n in notes:
             print(n)
         if findings is not None:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-# 0: the ArticleWriter contract runs now that XArticleHtmlWriter is registered.
+# 0: XArticleHtmlWriter and ManifestWriter are registered, so the ArticleWriter contract runs.
 EXPECTED_SKIPS = 0
 
 

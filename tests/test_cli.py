@@ -44,12 +44,24 @@ def test_json_matches_snapshot(full_run):
     proc, out_dir = full_run
     data = json.loads(proc.stdout)
     assert data.pop("out_dir") == out_dir.as_posix()
+    assert data.pop("manifest") == (out_dir / "manifest.json").as_posix()
     data.pop("notes")  # platform specific
     for img in data["images"]:
         if img["error"]:
             img["error"] = img["error"].splitlines()[0]
     expected = json.loads(EXPECTED.read_text(encoding="utf-8"))
     assert data == expected
+
+
+def test_manifest_lists_written_images(full_run):
+    _, out_dir = full_run
+    data = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    expected = json.loads((SNAPSHOTS / "synthetic_article.manifest.json").read_text(encoding="utf-8"))
+    assert data == expected
+    # Byte-identical across a second write already happened in the module fixture;
+    # the file on disk is UTF-8 JSON with a trailing newline.
+    raw = (out_dir / "manifest.json").read_bytes()
+    assert raw.decode("utf-8").endswith("\n")
 
 
 def test_error_names_block_line_and_retry_command(full_run):

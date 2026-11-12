@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "source": "synthetic_article.md",
+  "cover": "images/cover.png",
+  "images": [
+    {
+      "order": 1,
+      "file": "images/01.png",
+      "marker": "[Image 01: Overview]",
+      "caption": "Overview",
+      "anchor_text": "The pieces fit together like this:",
+      "source_line": 14
+    },
+    {
+      "order": 2,
+      "file": "images/02.png",
+      "marker": "[Image 02: Decisions]",
+      "caption": "Decisions",
+      "anchor_text": "Each request takes one of two paths:",
+      "source_line": 26
+    },
+    {
+      "order": 3,
+      "file": "images/03.png",
+      "marker": "[Image 03: Calls]",
+      "caption": "Calls",
+      "anchor_text": null,
+      "source_line": 43
+    },
+    {
+      "order": 4,
+      "file": "images/04.png",
+      "marker": "[Image 04: Types]",
+      "caption": "Types",
+      "anchor_text": null,
+      "source_line": 56
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 Markdown in, X Article out. One command turns a Markdown file, Mermaid diagrams included, into a paste-ready article body plus polished images for the X (Twitter) Article editor.
 
-**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring, `outline`, and the HTML writer (`article.html` and `outline.txt`) are implemented. The manifest and the full conversion command are not. This README is the v0 design for whoever builds it, human or bot.
+**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring, `outline`, image markers, captions, `manifest.json`, and the HTML writer (`article.html` and `outline.txt`) are implemented. The full conversion command is not. This README is the v0 design for whoever builds it, human or bot.
 
 ### If you are an agent
 
@@ -160,9 +160,11 @@ Images cannot be pasted, so the tool makes placement obvious and ordered.
 
 `anchor_text` is the paragraph just before the image, so a bot can find the spot in the editor even after the marker text is gone.
 
+This is implemented. `md2xarticle diagrams` writes `manifest.json` next to the images. `cover` is `null` when there is no cover image. `source` is the article file name, not a path. The manifest lists only images that were written.
+
 ### Captions
 
-Captions come from, in order: a Mermaid `title`, a `%% caption:` comment in the block, the alt text of a following `*Figure: ...*` line, then the nearest heading. The last fallback is the one that read badly in the real conversion, so the final rules are an [open question](#open-questions).
+Captions come from, in order: a Mermaid `title`, a `%% caption:` comment in the block, the alt text of a following `*Figure: ...*` line, then the nearest heading. If none of those are present, the caption is `Diagram NN`, so every marker has a label. See [Decided](#open-questions).
 
 ### Privacy scan
 
@@ -434,7 +436,7 @@ or:    md2xarticle article.md --renderer mermaidx
 ## Testing
 
 - **Contract tests.** One suite per base class. Every subclass runs its base class's suite, so a new renderer, composer, writer, or platform must pass the same checks before it plugs in.
-- **Snapshot tests.** Synthetic Markdown fixtures in, expected output out: today the `diagrams --json` result; HTML, outline, and manifest snapshots join in Phase 2. PNGs are checked by the image checks and determinism below, not against stored reference images.
+- **Snapshot tests.** Synthetic Markdown fixtures in, expected output out: today the `diagrams --json` result and `manifest.json`; HTML snapshots join with the HTML writer. PNGs are checked by the image checks and determinism below, not against stored reference images.
 - **Image checks.** Every output PNG is checked for exact canvas size, aspect ratio, and margins: content centered within 4 px (body) or 8 px (cover with a title or subtitle), with a minimum margin of 4% of each side. Never cropped tight.
 - **Cross-platform.** CI runs the full suite on Windows, macOS, and Ubuntu across the supported Python versions, so the image checks and determinism hold on each OS. There is no cross-OS perceptual diff against reference images yet; it is planned, not in CI.
 - **Determinism.** Same input twice gives byte-identical HTML and manifest. With the pinned renderer stack (mermaidx==0.11.3, novasvg==0.11.5, quickjs-ng==0.18.0.1, Pillow==13.0.0), PNG output is byte-identical across fresh processes on one platform. Byte equality across OSes is not expected.
@@ -483,7 +485,6 @@ Ask the owner. Do not guess.
 - **The owner's manual edits.** The list of hand edits made in the X editor on the real article. Each one becomes an acceptance test.
 - **Image placement.** How close to one-step placement X allows. Markers plus manifest is the baseline; anything better depends on what the editor permits without browser automation.
 - **`--watch` mode.** Wanted or not.
-- **Caption source rules.** Which sources win, and whether a diagram with no explicit caption gets one at all.
 - **Renderer fallback.** If mermaidx output falls short of the theme bar, which alternate wins: mmdr (fast, not official Mermaid) or opt-in mmdc (needs Node and Chromium).
 - **Cover content.** What the 5:2 cover is built from: a chosen diagram, the title on a themed background, or a supplied image.
 
@@ -503,6 +504,9 @@ Decided:
   - Divider: `<hr>`.
   - Images: each Mermaid block becomes its marker as its own `<p>`, taken from the document's image reference when one exists and `[Image NN]` otherwise. A Markdown image becomes the text `[Image: alt]`.
   - Raw HTML in the source is escaped and shown as text.
+- **Caption source rules.** Captions are taken in this order: a Mermaid `title` (front matter in the diagram source, a `title` line, or a `pie title`), then a `%% caption:` comment in the block, then the text of an immediately following `*Figure: ...*` line (also `**Figure: ...**`, `_Figure: ..._`, `Figure: ...`, and `![Figure: ...](...)`), then the nearest preceding heading. If none of those are present, the caption is `Diagram NN` (padded like the image number) so every marker has a label. A diagram with no explicit caption still gets one.
+- **Markers and manifest.** Each written body image gets a marker `[Image NN: caption]` and a `manifest.json` entry with `order`, `file`, `marker`, `caption`, `anchor_text`, and `source_line`. `anchor_text` is the paragraph immediately before the diagram, or `null` when the previous block is not a paragraph. `source` is the article file name, not a path. `cover` is `images/cover.png` or `null`. Image numbers are zero-padded to at least two digits, matching `images/NN.png`. The manifest lists only images that were written (a failed render is omitted). `diagrams` writes `manifest.json`, and `--json` includes a `manifest` path.
+- **Nested diagrams.** A Mermaid fence inside a list item or blockquote is a diagram like any other and keeps its place in reading order. It takes no `anchor_text` and no `Figure:` caption from the text around it; its caption comes from its own `title` or `%% caption:`, then the nearest heading.
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:
 
@@ -510,7 +514,6 @@ Proposed in this draft but not yet approved by the owner. Confirm or cut each on
 - **Flags `--heading-map`, `--only`, `--open`, and `--size`.**
 - **Default image sizes:** 1600x900 for body images and 1500x600 for the cover.
 - **Exit code 1** for a failed diagram or for privacy findings.
-- **Caption order:** Mermaid `title`, then a `%% caption:` comment, then a following "Figure:" line, then the nearest heading.
 - **Privacy deny-list:** an optional local list of names for the privacy scan, kept out of the repo.
 
 ## Working on this repo (for agents)

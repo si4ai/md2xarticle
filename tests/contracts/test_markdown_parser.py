@@ -66,3 +66,19 @@ def test_empty_text_has_no_headings(parser):
 def test_fenced_hash_is_not_a_heading(parser):
     doc = parser.parse("```\n# not a heading\n```\n")
     assert doc.headings == ()
+
+
+def test_mermaid_context_for_captions(parser, fixture_text):
+    doc = parser.parse(fixture_text)
+    assert [b.nearest_heading for b in doc.blocks] == [
+        "Overview",
+        "Decisions",
+        "Calls",
+        "Types",
+        "Broken on purpose",
+    ]
+    assert doc.blocks[0].anchor_text == "The pieces fit together like this:"
+    assert doc.blocks[1].anchor_text == "Each request takes one of two paths:"
+    assert doc.blocks[2].anchor_text is None
+    assert doc.blocks[3].anchor_text is None
+    assert all(b.figure_text is None for b in doc.blocks)
