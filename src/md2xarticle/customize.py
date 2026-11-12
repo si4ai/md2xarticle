@@ -17,6 +17,7 @@ Schema (every key optional)::
     edge_width = 2.0          # px
     wrap_width = 320          # px, flowchart label wrapping (default: automatic)
     rotate_commit_labels = true  # gitGraph: false draws commit labels level
+    compact_tall = true       # tall flowcharts and sequences may render compact
     margin = 0.06             # fraction of each canvas side, 0.04 to 0.25
 
     [palette]                 # #RRGGBB colors
@@ -71,6 +72,7 @@ _STYLE_KEYS = {
     "margin",
     "wrap_width",
     "rotate_commit_labels",
+    "compact_tall",
 }
 _PALETTE_TO_VARS = {
     "primary": ("primaryColor", "mainBkg", "actorBkg"),
@@ -136,6 +138,8 @@ class Customization:
             flow["rankSpacing"] = s["rank_spacing"]
         if "wrap_width" in s:
             flow["wrappingWidth"] = s["wrap_width"]
+        if "compact_tall" in s:
+            changes["compact_tall"] = s["compact_tall"]
         if "rotate_commit_labels" in s:
             changes["git_graph"] = {**theme.git_graph, "rotateCommitLabel": s["rotate_commit_labels"]}
         return theme.with_overrides(theme_variables=tv, flowchart=flow, **changes)
@@ -216,6 +220,10 @@ def from_dict(data: dict[str, Any], where: str = "customization") -> Customizati
     for key in ("corner_radius", "spacing", "node_spacing", "rank_spacing"):
         if key in style:
             checked[key] = _int_range(style[key], 0, 400, f"{where} [style] {key}")
+    if "compact_tall" in style:
+        if not isinstance(style["compact_tall"], bool):
+            raise UsageError(f"{where} [style] compact_tall must be true or false")
+        checked["compact_tall"] = style["compact_tall"]
     if "rotate_commit_labels" in style:
         if not isinstance(style["rotate_commit_labels"], bool):
             raise UsageError(f"{where} [style] rotate_commit_labels must be true or false")

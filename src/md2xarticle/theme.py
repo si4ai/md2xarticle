@@ -39,6 +39,8 @@ class Theme:
     flowchart: dict[str, Any] = field(default_factory=dict)
     sequence: dict[str, Any] = field(default_factory=dict)
     git_graph: dict[str, Any] = field(default_factory=dict)
+    # Diagrams taller than 16:9 may use a compact render (tighter rank or message spacing).
+    compact_tall: bool = True
 
     def theme_css(self) -> str:
         r = self.corner_radius

@@ -126,6 +126,9 @@ Each Mermaid block is rendered to a PNG, trimmed, and placed on a fixed canvas.
 - **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with an optional title and subtitle above the diagram, from front matter `title` and `subtitle` (or `cover_title` and `cover_subtitle` in the customization file). Upscaling is capped at 3x the native render, so a tiny diagram is not blown up. Every image must be the exact canvas size, with content centered within 4 px (body) or 8 px (cover with a title or subtitle), and a minimum margin of 4% of each side.
 - **Never cropped tight, never off-center.** A check measures the margins of every output image against those tolerances.
 - **Readable text.** A flowchart that is limited by the canvas height is also rendered with wider label wrapping (320 px instead of Mermaid's 200 px), and whichever draws larger is kept. The cover makes this choice again against its own diagram box, below the title and subtitle. The source is never rewritten. When a diagram still has to shrink below 0.65x on a body image or the cover, so its text drops under about 10 px, the run warns and names the next step: a `layout = "LR"` override for a flowchart, or splitting the diagram.
+- **Tall diagrams.** A top-down flowchart or a sequence diagram that is taller than 16:9 and would shrink on the default canvas is also rendered compact: a flowchart with Mermaid's dagre layout at 30 px between ranks (the default ELK layout ignores rank spacing), a sequence diagram with tighter message spacing. Whichever fits 16:9 larger is kept; `[style] compact_tall = false` turns this off.
+- **Subgraph spacing.** The default ELK layout can leave a large empty band at the bottom of a subgraph that has both an outgoing edge and an incoming back edge. That band is removed after layout, keeping the flowchart padding under the last node.
+- **gitGraph labels.** Slanted commit labels are measured against the lanes, branch lines, branch names, tags, commits, and each other. Only the lane or commit gaps that need it are widened, so no label crosses anything. Level labels are left as Mermaid draws them.
 - **Same input, same bytes.** With the pinned stack, a run in a fresh process writes byte-identical PNGs on the same platform.
 
 ### Image markers and the manifest
@@ -393,6 +396,7 @@ corner_radius = 8
 spacing = 16
 wrap_width = 280               # flowchart label wrapping, px (default: automatic)
 rotate_commit_labels = false   # gitGraph: level commit labels (default: rotated)
+compact_tall = true            # tall flowcharts and sequences may render compact
 
 [[diagrams]]
 id = 1
