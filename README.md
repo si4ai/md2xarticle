@@ -464,7 +464,7 @@ This is an open-source repository. Nothing personal goes in it.
 
 ## Release
 
-Publishing is trusted publishing from GitHub Actions, with no stored PyPI token. The workflow file is `.github/workflows/release.yml`. The GitHub environments are `testpypi` (a `workflow_dispatch` from `main` publishes the TestPyPI rehearsal) and `pypi` (a `v*` tag on `main` publishes to PyPI). A human admin approves the `pypi` environment when a required reviewer is set. The runbook, including the one-time admin settings, is [docs/RELEASE.md](docs/RELEASE.md).
+Publishing is trusted publishing from GitHub Actions, with no stored PyPI token. The workflow file is `.github/workflows/release.yml`. `workflow_dispatch` from `main` is a dry run: it builds the package, runs the tests, `twine check --strict`, and a wheel smoke test, and it uploads nothing. A `v*` tag on `main` runs the same checks and publishes to PyPI through the `pypi` environment. A human admin approves the `pypi` environment when a required reviewer is set. The `testpypi` environment is unused. The runbook, including the one-time admin settings, is [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Roadmap
 
@@ -518,7 +518,7 @@ Decided:
 - **Caption source rules.** Captions are taken in this order: a Mermaid `title` (front matter in the diagram source, a `title` line, or a `pie title`), then a `%% caption:` comment in the block, then the text of an immediately following `*Figure: ...*` line (also `**Figure: ...**`, `_Figure: ..._`, `Figure: ...`, and `![Figure: ...](...)`), then the nearest preceding heading. If none of those are present, the caption is `Diagram NN` (padded like the image number) so every marker has a label. A diagram with no explicit caption still gets one.
 - **Markers and manifest.** Each written body image gets a marker `[Image NN: caption]` and a `manifest.json` entry with `order`, `file`, `marker`, `caption`, `anchor_text`, and `source_line`. `anchor_text` is the paragraph immediately before the diagram, or `null` when the previous block is not a paragraph. `source` is the article file name, not a path. `cover` is `images/cover.png` or `null`. Image numbers are zero-padded to at least two digits, matching `images/NN.png`. The manifest lists only images that were written (a failed render is omitted). `diagrams` writes `manifest.json`, and `--json` includes a `manifest` path.
 - **Nested diagrams.** A Mermaid fence inside a list item or blockquote is a diagram like any other and keeps its place in reading order. It takes no `anchor_text` and no `Figure:` caption from the text around it; its caption comes from its own `title` or `%% caption:`, then the nearest heading.
-- **PyPI release.** Trusted publishing from `.github/workflows/release.yml`. `workflow_dispatch` from `main` publishes to TestPyPI (environment `testpypi`). A `v*` tag on `main` publishes to PyPI (environment `pypi`). A human admin approves the `pypi` environment when a reviewer is required. See [Release](#release) and [docs/RELEASE.md](docs/RELEASE.md).
+- **PyPI release.** Trusted publishing from `.github/workflows/release.yml`. `workflow_dispatch` from `main` is a dry run (build, tests, twine, wheel smoke; uploads nothing). A `v*` tag on `main` publishes to PyPI (environment `pypi`). A human admin approves the `pypi` environment when a reviewer is required. The `testpypi` environment is unused. See [Release](#release) and [docs/RELEASE.md](docs/RELEASE.md).
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:
 

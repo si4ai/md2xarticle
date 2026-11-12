@@ -34,6 +34,11 @@ test = ["pytest>=8"]
 [project.scripts]
 md2xarticle = "md2xarticle.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/si4ai/md2xarticle"
+Source = "https://github.com/si4ai/md2xarticle"
+Issues = "https://github.com/si4ai/md2xarticle/issues"
+
 [tool.hatch.version]
 path = "src/md2xarticle/__init__.py"
 
