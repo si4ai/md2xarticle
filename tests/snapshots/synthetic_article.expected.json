@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "images": [
+    {"order": 1, "file": "images/01.png", "source_line": 14, "ok": true, "error": null},
+    {"order": 2, "file": "images/02.png", "source_line": 26, "ok": true, "error": null},
+    {"order": 3, "file": "images/03.png", "source_line": 43, "ok": true, "error": null},
+    {"order": 4, "file": "images/04.png", "source_line": 56, "ok": true, "error": null},
+    {"order": 5, "file": null, "source_line": 70, "ok": false, "error": "Parse error:"}
+  ],
+  "cover": "images/cover.png",
+  "warnings": []
+}
