@@ -169,11 +169,11 @@ Captions come from, in order: a Mermaid `title`, a `%% caption:` comment in the 
 `--check-privacy` (or the `check` command) flags, without changing anything:
 
 - Email addresses and phone-number shapes
-- Local paths: Windows user folders, Unix and macOS home folders, and `\\wsl$` shares
+- Local paths: Windows user folders, Unix and macOS home folders, `\\wsl$` shares, and Windows user folders seen from WSL under `/mnt/<drive>/Users`
 - Secret-shaped strings: API keys, bearer tokens, PEM blocks, credentials in URLs
-- Names from an optional local deny-list file that never leaves the machine
+- Names from an optional local deny-list file that never leaves the machine. The path comes from `--deny-list FILE` or the `MD2XARTICLE_PRIVACY_DENYLIST` environment variable; the file is not shipped with the package.
 
-Findings print with file and line. It is a check, not a block: exit 1 on findings, and the output files are still written.
+Findings print with file and line, and never include the matched text. It is a check, not a block: exit 1 on findings, and the output files are still written. The `check` command writes nothing.
 
 ## Architecture
 
@@ -360,11 +360,11 @@ then upload images in order at each [Image NN] marker.
 
 ### `md2xarticle diagrams ARTICLE.md [-o OUT] [--cover]`
 
-Images only: render every Mermaid block to a polished, centered 16:9 PNG, plus an optional 5:2 cover. This is the Phase 1 milestone and is useful on its own for an article whose text is already in the X editor and only needs better images. `--only`, `--theme`, `--custom-path`, `--size`, and `--renderer` apply here too.
+Images only: render every Mermaid block to a polished, centered 16:9 PNG, plus an optional 5:2 cover. This is the Phase 1 milestone and is useful on its own for an article whose text is already in the X editor and only needs better images. `--only`, `--theme`, `--custom-path`, `--size`, `--renderer`, and `--check-privacy` apply here too. `--check-privacy` scans the source article after writing; images are still written.
 
 ### `md2xarticle check ARTICLE.md`
 
-Privacy scan only. Prints findings with line numbers. Writes nothing.
+Privacy scan only. Prints findings with line numbers. Writes nothing. `--deny-list FILE` or `MD2XARTICLE_PRIVACY_DENYLIST` supplies the optional local deny-list. `--json` prints the same findings as a list. Exit 1 on findings, 0 if clean, 2 on a usage error (missing file or deny-list).
 
 ### `md2xarticle outline ARTICLE.md`
 

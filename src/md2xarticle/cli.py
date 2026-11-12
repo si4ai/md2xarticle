@@ -1,4 +1,4 @@
-"""Command line: ``md2xarticle diagrams ARTICLE.md [options]``."""
+"""Command line: ``md2xarticle diagrams`` and ``md2xarticle check``."""
 
 from __future__ import annotations
 
@@ -8,14 +8,15 @@ import sys
 import traceback
 from pathlib import Path
 
-from md2xarticle import __version__, factory, outline
+from md2xarticle import __version__, check, factory, outline
 from md2xarticle.customize import Customization, load, parse_size
 from md2xarticle.errors import UsageError
 from md2xarticle.pipeline import DiagramsOptions, DiagramsResult
+from md2xarticle.privacy import Finding, findings_as_json, format_findings, scan_text
 from md2xarticle.theme import BUILTIN_THEMES, DEFAULT_THEME
 
 EXIT_OK, EXIT_FINDINGS, EXIT_USAGE, EXIT_INTERNAL = 0, 1, 2, 3
-COMMANDS = ("diagrams", "outline")
+COMMANDS = ("diagrams", "outline", "check")
 
 
 def _parse_only(text: str) -> frozenset[int]:
@@ -49,7 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--renderer", default=factory.DEFAULT_RENDERER, choices=sorted(factory.RENDERERS))
     d.add_argument("--json", action="store_true", help="print a JSON summary to stdout")
     d.add_argument("-v", "--verbose", action="store_true", help="full error details")
+    check.add_scan_arguments(d, require_privacy_flag=True)
     outline.add_parser(sub)
+    check.add_parser(sub)
     return p
 
 
@@ -95,9 +98,9 @@ def _options(args: argparse.Namespace, custom: Customization, out_dir: Path, war
     )
 
 
-def _summary_json(args: argparse.Namespace, out_dir: Path, result: DiagramsResult, notes: list[str]) -> dict:
-    return {
-        "ok": not result.failed,
+def _summary_json(args: argparse.Namespace, out_dir: Path, result: DiagramsResult, notes: list[str], findings: list[Finding] | None = None) -> dict:
+    data = {
+        "ok": not result.failed and not findings,
         "out_dir": out_dir.as_posix(),
         "images": [
             {
@@ -113,10 +116,14 @@ def _summary_json(args: argparse.Namespace, out_dir: Path, result: DiagramsResul
         "warnings": result.warnings,
         "notes": notes,
     }
+    if findings is not None:
+        data["privacy_findings"] = findings_as_json(args.article, findings)
+    return data
 
 
 def run_diagrams(args: argparse.Namespace) -> int:
     warnings: list[str] = []
+    deny = check.load_deny(args.deny_list) if args.check_privacy else ()
     custom = load(args.custom_path) if args.custom_path is not None else Customization()
     if custom.theme_name and args.theme and custom.theme_name != args.theme:
         warnings.append("--theme is overridden by the customization file")
@@ -135,6 +142,7 @@ def run_diagrams(args: argparse.Namespace) -> int:
     result = pipeline.run_diagrams(text, opts)
     result.warnings[:0] = warnings
     notes = platform.notes()
+    findings = scan_text(text, deny) if args.check_privacy else None
 
     for w in result.warnings:
         print(f"warning: {w}", file=sys.stderr)
@@ -150,7 +158,7 @@ def run_diagrams(args: argparse.Namespace) -> int:
         print(f"try:   {_retry_hint(args, r.index)}", file=sys.stderr)
 
     if args.json:
-        print(json.dumps(_summary_json(args, out_dir, result, notes), indent=2))
+        print(json.dumps(_summary_json(args, out_dir, result, notes, findings), indent=2))
     else:
         print(f"md2xarticle {__version__}  diagrams {args.article.name} -> {out_dir.as_posix()}/")
         for r in result.images:
@@ -164,7 +172,9 @@ def run_diagrams(args: argparse.Namespace) -> int:
         print(f"Wrote {ok} image(s){' and a cover' if result.cover else ''} to {out_dir.as_posix()}/images/")
         for n in notes:
             print(n)
-    return EXIT_FINDINGS if result.failed else EXIT_OK
+        if findings is not None:
+            print(format_findings(args.article, findings), end="")
+    return EXIT_FINDINGS if result.failed or findings else EXIT_OK
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -181,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "outline":
             return outline.run(args)
+        if args.command == "check":
+            return check.run_check(args)
         return run_diagrams(args)
     except UsageError as exc:
         print(f"error: {exc}", file=sys.stderr)
