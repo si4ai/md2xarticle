@@ -22,6 +22,7 @@ class MermaidBlock:
 @dataclass(frozen=True)
 class Document:
     title: str | None = None
+    subtitle: str | None = None
     blocks: tuple[MermaidBlock, ...] = ()
 
 

@@ -37,6 +37,7 @@ class Theme:
     theme_variables: dict[str, Any] = field(default_factory=dict)
     flowchart: dict[str, Any] = field(default_factory=dict)
     sequence: dict[str, Any] = field(default_factory=dict)
+    git_graph: dict[str, Any] = field(default_factory=dict)
 
     def theme_css(self) -> str:
         r = self.corner_radius
@@ -55,6 +56,7 @@ class Theme:
             "themeVariables": copy.deepcopy(self.theme_variables),
             "flowchart": copy.deepcopy(self.flowchart),
             "sequence": copy.deepcopy(self.sequence),
+            "gitGraph": copy.deepcopy(self.git_graph),
             "themeCSS": self.theme_css(),
             # Mermaid draws some shapes (stadium, cylinder, ...) with rough.js,
             # which is seeded randomly unless this is set. A fixed seed keeps

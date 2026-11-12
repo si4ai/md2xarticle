@@ -88,6 +88,7 @@ def _options(args: argparse.Namespace, custom: Customization, out_dir: Path, war
         cover_diagram=custom.cover_diagram,
         cover_title_only=custom.cover_title_only,
         cover_title=custom.cover_title,
+        cover_subtitle=custom.cover_subtitle,
         only=args.only,
         overrides=custom.diagrams,
     )

@@ -18,9 +18,16 @@ from md2xarticle.parse.base import MarkdownParser
 from md2xarticle.platform.base import Platform
 from md2xarticle.render.base import DiagramRenderer
 from md2xarticle.theme import Theme, hex_to_rgb
-from md2xarticle.transform import set_flowchart_direction
+from md2xarticle.transform import is_flowchart, set_flowchart_direction
 
 PNG_OPTIONS = {"format": "PNG", "compress_level": 6, "optimize": False}
+# A flowchart that is limited by the canvas height is also rendered with this
+# label wrapping width (Mermaid's default is 200 px); the larger fit wins. The
+# extra width is free on a wide canvas and stops labels wrapping word by word.
+WIDE_WRAP = 320
+# Below this scale, diagram text (16 px at scale 1) drops under about 10 px on
+# the canvas, and the run warns with the next thing to try.
+MIN_TEXT_SCALE = 0.65
 
 
 @dataclass(frozen=True)
@@ -32,6 +39,7 @@ class DiagramsOptions:
     cover_diagram: int | None = None  # None means diagram 1
     cover_title_only: bool = False
     cover_title: str | None = None  # None means front matter title; "" means none
+    cover_subtitle: str | None = None  # None means front matter subtitle; "" means none
     only: frozenset[int] | None = None
     overrides: dict[int, DiagramOverride] = field(default_factory=dict)
 
@@ -76,7 +84,7 @@ class Pipeline:
         parser: MarkdownParser,
         renderer: DiagramRenderer,
         body: ImageComposer,
-        make_cover: Callable[[str | None], ImageComposer],
+        make_cover: Callable[[str | None, str | None], ImageComposer],
         platform: Platform,
         theme: Theme,
     ) -> None:
@@ -98,6 +106,44 @@ class Pipeline:
                 "and graph only; rendered as written"
             )
         return new
+
+    def _box(self, size: tuple[int, int]) -> tuple[int, int]:
+        m = self.theme.margin
+        return round(size[0] * (1 - 2 * m)), round(size[1] * (1 - 2 * m))
+
+    def _scale(self, img: RenderedImage, box: tuple[int, int]) -> float:
+        w, h = img.native_size
+        return min(box[0] / max(1, w), box[1] / max(1, h), self.theme.max_scale)
+
+    def _render(self, source: str, box: tuple[int, int]) -> RenderedImage:
+        """Render; for a height-limited flowchart, also try wider label wrapping
+        and keep whichever draws larger. Fixed candidates keep output deterministic."""
+        img = self.renderer.render(source, self.theme)
+        if "wrappingWidth" in self.theme.flowchart or not is_flowchart(source):
+            return img
+        w, h = img.native_size
+        if w * box[1] >= h * box[0]:
+            return img  # already limited by the width; wider labels would shrink it
+        wide = self.theme.with_overrides(flowchart={**self.theme.flowchart, "wrappingWidth": WIDE_WRAP})
+        try:
+            alt = self.renderer.render(source, wide)
+        except DiagramRenderError:
+            return img
+        return alt if self._scale(alt, box) >= self._scale(img, box) else img
+
+    def _text_check(
+        self, block: MermaidBlock, img: RenderedImage, box: tuple[int, int], opts: DiagramsOptions, warnings: list[str]
+    ) -> None:
+        scale = self._scale(img, box)
+        if scale >= MIN_TEXT_SCALE:
+            return
+        override = opts.overrides.get(block.index)
+        hint = "split it into smaller diagrams"
+        if is_flowchart(block.source) and (override is None or override.layout is None):
+            hint = f"try layout = \"LR\" for id = {block.index} under [[diagrams]] in a --custom-path file, or split it"
+        warnings.append(
+            f"image {block.index:02d}: the diagram is scaled to {scale:.2f}x, so its text is small; {hint}"
+        )
 
     def _check(self, label: str, image: Image.Image, composer: ImageComposer, warnings: list[str]) -> None:
         margins = measure(image, hex_to_rgb(self.theme.canvas))
@@ -123,17 +169,19 @@ class Pipeline:
 
         rendered: dict[int, RenderedImage] = {}
         images_dir = opts.out_dir / "images"
+        box = self._box(opts.size)
         for block in doc.blocks:
             if opts.only is not None and block.index not in opts.only:
                 continue
             item = ImageResult(index=block.index, line=block.line)
             result.images.append(item)
             try:
-                img = self.renderer.render(self._source(block, opts, result.warnings), self.theme)
+                img = self._render(self._source(block, opts, result.warnings), box)
             except DiagramRenderError as exc:
                 item.error = str(exc)
                 continue
             rendered[block.index] = img
+            self._text_check(block, img, box, opts, result.warnings)
             composed = self.body.compose(img, opts.size)
             name = image_name(block.index, total)
             save_png(composed, images_dir / name)
@@ -152,6 +200,7 @@ class Pipeline:
         warnings: list[str],
     ) -> str | None:
         title = doc.title if opts.cover_title is None else (opts.cover_title or None)
+        subtitle = doc.subtitle if opts.cover_subtitle is None else (opts.cover_subtitle or None)
         image: RenderedImage | None = None
         if not opts.cover_title_only:
             idx = opts.cover_diagram or 1
@@ -162,13 +211,13 @@ class Pipeline:
                 image = rendered[idx]
             else:
                 try:
-                    image = self.renderer.render(self._source(block, opts, []), self.theme)
+                    image = self._render(self._source(block, opts, []), self._box(opts.cover_size))
                 except DiagramRenderError:
                     warnings.append(f"cover: diagram {idx} failed to render")
-        if image is None and not title:
+        if image is None and not title and not subtitle:
             warnings.append("cover: no diagram and no title; cover skipped")
             return None
-        composer = self.make_cover(title)
+        composer = self.make_cover(title, subtitle)
         cover = composer.compose(image, opts.cover_size)
         save_png(cover, opts.out_dir / "images" / "cover.png")
         self._check("cover", cover, composer, warnings)

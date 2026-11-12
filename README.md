@@ -122,9 +122,11 @@ The tool picks the mapping, writes it to `outline.txt`, and prints it, so a huma
 Each Mermaid block is rendered to a PNG, trimmed, and placed on a fixed canvas.
 
 - **Renderer:** [mermaidx](https://pypi.org/project/mermaidx/) by default, pinned to mermaidx==0.11.3, novasvg==0.11.5, and quickjs-ng==0.18.0.1, with Pillow==13.0.0 for composition. It runs real Mermaid inside an embedded QuickJS engine and rasterizes with novasvg, so it needs no Node and no Chrome. Known costs: about 0.5 to 2 seconds per diagram, and bundled-font metrics can differ slightly from a browser render. Fidelity notes are in [Phase 0 findings](docs/PHASE0-FINDINGS.md).
-- **Theme:** the default is `soft`: DejaVu Sans (from mermaidx), a soft palette, rounded boxes, and generous spacing. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
-- **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with optional title text. Every image must be the exact canvas size, with content centered within 4 px (body) or 8 px (titled cover), and a minimum margin of 4% of each side.
+- **Theme:** the default is `soft`: DejaVu Sans (from mermaidx), a soft palette, rounded boxes, and generous spacing. `mono` (gray on white) and `warm` (amber on cream) are the other built-ins. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
+- **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with an optional title and subtitle above the diagram, from front matter `title` and `subtitle` (or `cover_title` and `cover_subtitle` in the customization file). Upscaling is capped at 3x the native render, so a tiny diagram is not blown up. Every image must be the exact canvas size, with content centered within 4 px (body) or 8 px (titled cover), and a minimum margin of 4% of each side.
 - **Never cropped tight, never off-center.** A check measures the margins of every output image against those tolerances.
+- **Readable text.** A flowchart that is limited by the canvas height is also rendered with wider label wrapping (320 px instead of Mermaid's 200 px), and whichever draws larger is kept. The source is never rewritten. When a diagram still has to shrink below 0.65x, so its text drops under about 10 px, the run warns and names the next step: a `layout = "LR"` override for a flowchart, or splitting the diagram.
+- **Same input, same bytes.** With the pinned stack, a run in a fresh process writes byte-identical PNGs on the same platform.
 
 ### Image markers and the manifest
 
@@ -373,7 +375,7 @@ md2xarticle article.md --custom-path article.toml
 
 With no flag, the built-in defaults apply: theme `soft`, and Mermaid source is rendered as written.
 
-The file may set the theme (palette, corner radius, spacing; font later), per-diagram layout overrides, cover choice, and image sizes.
+The file may set the theme (palette, corner radius, spacing, label wrapping, gitGraph label rotation; font later), per-diagram layout overrides, cover choice and text, and image sizes. A value in the file wins over the matching flag (`--theme`, `--size`), and the run prints a warning when that happens.
 
 The file is read with the standard library `tomllib`, so no extra TOML dependency is needed.
 
@@ -384,10 +386,13 @@ theme = "soft"
 size = "1600x900"
 cover_size = "1500x600"
 cover = "diagram:2"
+cover_subtitle = ""            # "" turns the front matter subtitle off
 
 [style]
 corner_radius = 8
 spacing = 16
+wrap_width = 280               # flowchart label wrapping, px (default: automatic)
+rotate_commit_labels = false   # gitGraph: level commit labels (default: rotated)
 
 [[diagrams]]
 id = 1

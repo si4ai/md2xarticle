@@ -7,16 +7,25 @@ import importlib.util
 from pathlib import Path
 
 TITLE_FONT_FILES = ("DejaVuSans-Bold.ttf", "DejaVuSans.ttf")
+SUBTITLE_FONT_FILES = ("DejaVuSans.ttf",)
 
 
 def title_font_path(extra_dirs: list[Path]) -> Path | None:
+    return font_path(TITLE_FONT_FILES, extra_dirs)
+
+
+def subtitle_font_path(extra_dirs: list[Path]) -> Path | None:
+    return font_path(SUBTITLE_FONT_FILES, extra_dirs)
+
+
+def font_path(names: tuple[str, ...], extra_dirs: list[Path]) -> Path | None:
     dirs: list[Path] = []
     spec = importlib.util.find_spec("mermaidx")
     if spec is not None and spec.submodule_search_locations:
         for loc in spec.submodule_search_locations:
             dirs.append(Path(loc) / "assets" / "fonts")
     dirs.extend(extra_dirs)
-    for name in TITLE_FONT_FILES:
+    for name in names:
         for d in dirs:
             p = d / name
             if p.is_file():

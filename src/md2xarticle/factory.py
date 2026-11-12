@@ -10,7 +10,7 @@ from md2xarticle.compose.base import ImageComposer
 from md2xarticle.compose.body import BodyImageComposer
 from md2xarticle.compose.cover import CoverComposer
 from md2xarticle.errors import UsageError
-from md2xarticle.fonts import title_font_path
+from md2xarticle.fonts import subtitle_font_path, title_font_path
 from md2xarticle.parse.base import MarkdownParser
 from md2xarticle.parse.markdown_it import MarkdownItParser
 from md2xarticle.pipeline import Pipeline
@@ -69,9 +69,10 @@ def make_renderer(name: str) -> DiagramRenderer:
 def build_pipeline(theme: Theme, renderer: str = DEFAULT_RENDERER, platform: Platform | None = None) -> Pipeline:
     platform = platform or detect_platform()
     font = title_font_path(platform.font_dirs())
+    sub_font = subtitle_font_path(platform.font_dirs())
 
-    def make_cover(title: str | None) -> ImageComposer:
-        return CoverComposer(theme, title=title, font_path=font)
+    def make_cover(title: str | None, subtitle: str | None = None) -> ImageComposer:
+        return CoverComposer(theme, title=title, font_path=font, subtitle=subtitle, subtitle_font_path=sub_font)
 
     return Pipeline(
         parser=MarkdownItParser(),
