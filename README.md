@@ -459,7 +459,7 @@ This is an open-source repository. Nothing personal goes in it.
 - No personal information, real names, usernames, local paths, email addresses, or secrets anywhere: code, package, tests, fixtures, docs, examples, commit messages.
 - Fixtures are synthetic. Real articles are tested locally and never committed.
 - Example paths are generic: `article.md`, `out/`, `images/01.png`.
-- A hygiene check (`tools/hygiene.py`, the one scanner) runs in CI on every PR and push, over the tree, the commit messages, and the built wheel and sdist. It scans for email shapes, home-directory paths, secret shapes, and a deny-list kept outside the repo (`MD2XARTICLE_HYGIENE_DENYLIST`). Its planted fixture (`--selftest`) and the pytest suite prove it fails visibly.
+- A hygiene check (`tools/hygiene.py`, the one scanner) runs in CI on every PR and push, over the tree, the commit messages, and the built wheel and sdist. It scans for email shapes, home-directory paths, secret shapes, typographic marks, byte-order marks, and a deny-list kept outside the repo (`MD2XARTICLE_HYGIENE_DENYLIST`). Typographic marks under `tests/snapshots/` are allowed, because those fixtures capture the HTML writer's typography. Its planted fixture (`--selftest`) and the pytest suite prove it fails visibly.
 - md2xarticle ships no font files. DejaVu Sans comes with mermaidx, under its own license. Any font bundled here later must have a license that allows redistribution, shipped beside it.
 
 ## Release
@@ -505,7 +505,7 @@ Decided:
 - **Default theme.** `mono` (neutral gray on white), picked by the owner from the theme samples. `soft`, `warm`, `x-light`, and `x-dark` are options, and Mermaid's own `default` theme is not used. Further look-and-feel is customization.
 - **HTML writer markup** (`write/html.py`, one function per element; revisit after the paste test). No classes, inline styles, or scripts, and the same input gives the same bytes.
   - Headings: X Heading is `<h2>` and Subheading is `<h3>`, never `<h1>`, because X keeps the title in its own field. The title goes in `<title>` only. Heading text is plain, matching `outline.txt`.
-  - Deep headings: a bold lead-in is `<p><strong>…</strong></p>` on its own line; a run of sibling list-item headings is one `<ul>`.
+  - Deep headings: a bold lead-in is `<p><strong>...</strong></p>` on its own line; a run of sibling list-item headings is one `<ul>`.
   - Paragraphs: one `<p>` per paragraph, with no empty paragraphs for spacing. A soft line break becomes a space and a hard break becomes `<br>`.
   - Inline: `<strong>`, `<em>`, `<s>`, `<a href>` (titles dropped), and `<code>`.
   - Lists: `<ul>` and `<ol>` (with `start` when it is not 1), always tight, so there is no `<p>` inside `<li>`. Nested lists are flattened by default into the top-level list, with an en dash per level and the number kept for ordered sub-items, because public reports say X drops nested items. `HtmlOptions(nested_lists="nest")` keeps real nesting.
@@ -535,7 +535,7 @@ Proposed in this draft but not yet approved by the owner. Confirm or cut each on
 - **Small, verifiable PRs.** One concern per PR, each with a done-when that a test or check confirms.
 - **Do not re-run flaky tests until they pass. Fix them.** A flaky image diff usually means a nondeterministic renderer, font, or Pillow setting.
 - **Keep the interfaces honest.** A new subclass passes its base class's contract suite. `Pipeline` never imports a concrete class.
-- **Hygiene first.** Run the hygiene check before every push. Synthetic fixtures only.
+- **Hygiene first.** Run the hygiene check before every push. Synthetic fixtures only. Once per checkout, turn on the repo hooks with `git config core.hooksPath .githooks`. `pre-commit` runs `tools/hygiene.py --staged` on staged blobs.
 - **No network at run time.** If a feature needs the network, it is out of scope or opt-in by name, and the owner decides.
 
 ## Prior art

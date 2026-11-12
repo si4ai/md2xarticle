@@ -22,8 +22,10 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 
 V = r"(3\.\d+)"
 PIN_RE = re.compile(r"\b([A-Za-z0-9][A-Za-z0-9_.-]*)==([0-9][0-9A-Za-z.]*[0-9A-Za-z])")
-# "3.11 to 3.13", "3.11-3.13", "3.11–3.13", "3.11 through 3.13"
-RANGE_RE = re.compile(rf"(?<![\w.]){V}\s*(?:to|through|-|–|—)\s*{V}(?!\.?\d)")
+# "3.11 to 3.13", "3.11-3.13", typographic dashes, "3.11 through 3.13"
+RANGE_RE = re.compile(
+    rf"(?<![\w.]){V}\s*(?:to|through|-|" + "\u2013|\u2014" + rf")\s*{V}(?!\.?\d)"
+)
 # ">=3.11", "≥ 3.11", "3.11+", "3.11 or later", "3.11 and newer", ...
 FLOOR_RE = re.compile(
     rf"(?:(?:>=|≥)\s*{V}(?!\.?\d))"
@@ -316,7 +318,7 @@ def test_missing_python_range_is_caught():
     assert "README states no Python 'X to Y' range" in readme_problems(readme, PROJECT)
 
 
-@pytest.mark.parametrize("text", ["Python 3.10-3.13", "Python 3.11–3.14", "3.10 through 3.13"])
+@pytest.mark.parametrize("text", ["Python 3.10-3.13", "Python 3.11\u20133.14", "3.10 through 3.13"])
 def test_other_range_spellings_are_caught(text):
     assert any("pyproject says 3.11 to 3.13" in p for p in readme_problems(_readme_with(text), PROJECT))
 

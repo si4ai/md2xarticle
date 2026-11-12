@@ -4,8 +4,12 @@
 Scans the work tree for email shapes, home-directory paths (Windows
 user folders, Unix and macOS home folders, WSL UNC shares, and
 Windows user folders seen from WSL under /mnt),
-secret shapes, and PEM blocks. An optional deny-list file kept
-outside the repo may be passed with --deny-list.
+secret shapes, PEM blocks, typographic marks, and byte-order marks.
+Typographic marks under tests/snapshots/ are allowed so fixtures
+can keep the HTML writer's typography (for example the en dash
+used when nested lists are flattened).
+An optional deny-list file kept outside the repo may be passed with
+--deny-list. --staged scans index blobs the same way.
 
 The planted fixture under tools/testdata/ is excluded from a normal
 scan. --selftest runs the scanner against that fixture and exits 0
@@ -28,6 +32,7 @@ import sys
 from pathlib import Path
 
 PLANT_REL = Path("tools") / "testdata" / "hygiene_plant.txt"
+SNAPSHOTS_PREFIX = "tests/snapshots/"
 SKIP_DIR_NAMES = frozenset(
     {
         ".git",
@@ -70,6 +75,32 @@ SKIP_SUFFIXES = frozenset(
     }
 )
 MAX_BYTES = 2_000_000
+_BOM_PREFIXES = (b"\xef\xbb\xbf", b"\xff\xfe", b"\xfe\xff")
+_TEXT_MARKS = frozenset(
+    {
+        0x00A0,
+        0x00B1,
+        0x00B7,
+        0x0394,
+        0x200B,
+        0x200C,
+        0x200D,
+        0x2013,
+        0x2014,
+        0x2018,
+        0x2019,
+        0x201C,
+        0x201D,
+        0x2026,
+        0x2190,
+        0x2191,
+        0x2192,
+        0x2193,
+        0x2264,
+        0x2713,
+        0xFEFF,
+    }
+)
 
 # Placeholder local-part/domain values that docs are allowed to use.
 _PLACEHOLDER_EMAIL_DOMAINS = frozenset(
@@ -242,6 +273,37 @@ def scan_text(text: str, deny: tuple[str, ...]) -> list[str]:
         if word and word in folded:
             add("deny-list")
             break
+    mark = text_mark(text)
+    if mark is not None:
+        add(f"typographic mark U+{mark:04X}")
+    return kinds
+
+
+def text_mark(text: str) -> int | None:
+    if not text:
+        return None
+    for ch in text:
+        point = ord(ch)
+        if point in _TEXT_MARKS:
+            return point
+    return None
+
+
+def blob_has_bom(data: bytes) -> bool:
+    return bool(data) and data.startswith(_BOM_PREFIXES)
+
+
+def kinds_in_blob(data: bytes, deny: tuple[str, ...]) -> list[str]:
+    kinds: list[str] = []
+    if blob_has_bom(data):
+        kinds.append("byte-order mark")
+    if not data or len(data) > MAX_BYTES or b"\0" in data[:8192]:
+        return kinds
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return kinds
+    kinds.extend(scan_text(text, deny))
     return kinds
 
 
@@ -312,16 +374,51 @@ def rel_where(path: Path, root: Path) -> str:
         return path.as_posix()
 
 
+def allow_typographic(where: str) -> bool:
+    path = where.replace("\\", "/")
+    return f"/{SNAPSHOTS_PREFIX}" in f"/{path}/"
+
+
 def scan_tree(
     root: Path, deny: tuple[str, ...], excluded: set[Path]
 ) -> list[tuple[str, str]]:
     findings: list[tuple[str, str]] = []
     for path in iter_files(root, excluded):
-        text = read_text(path)
-        if text is None:
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        if not data:
             continue
         where = rel_where(path, root)
-        for kind in scan_text(text, deny):
+        for kind in kinds_in_blob(data, deny):
+            if allow_typographic(where) and kind.startswith("typographic mark"):
+                continue
+            findings.append((kind, where))
+    return findings
+
+
+def scan_staged(
+    root: Path, deny: tuple[str, ...], excluded: set[Path]
+) -> list[tuple[str, str]]:
+    findings: list[tuple[str, str]] = []
+    raw = _git(root, "diff", "--cached", "--name-only", "--diff-filter=ACM", "-z")
+    for rel in raw.decode("utf-8", "replace").split("\0"):
+        if not rel:
+            continue
+        resolved = (root / rel).resolve()
+        if resolved in excluded:
+            continue
+        try:
+            data = _git(root, "show", f":{rel}")
+        except subprocess.CalledProcessError as exc:
+            raise OSError(f"cannot read staged blob {rel}: {exc}") from exc
+        if not data:
+            continue
+        for kind in kinds_in_blob(data, deny):
+            where = rel.replace("\\", "/")
+            if allow_typographic(where) and kind.startswith("typographic mark"):
+                continue
             findings.append((kind, where))
     return findings
 
@@ -466,6 +563,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="prove the planted fixture fails visibly, then exit",
     )
+    ap.add_argument(
+        "--staged",
+        action="store_true",
+        help="scan staged index blobs instead of the work tree",
+    )
     args = ap.parse_args(argv)
     root = args.root
     try:
@@ -475,7 +577,11 @@ def main(argv: list[str] | None = None) -> int:
         deny = load_deny_list(deny_path)
         if args.selftest:
             return run_selftest(root)
-        findings = scan_tree(root, deny, default_excluded(root))
+        excluded = default_excluded(root)
+        if args.staged:
+            findings = scan_staged(root, deny, excluded)
+        else:
+            findings = scan_tree(root, deny, excluded)
         if args.base:
             findings.extend(scan_commits(root, args.base, args.head, deny))
     except FileNotFoundError as exc:
