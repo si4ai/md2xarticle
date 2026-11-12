@@ -2,7 +2,9 @@
 """Check built distributions end to end. Standard library only.
 
 For the wheel and the sdist in DIST_DIR:
-1. The file list holds only package files (nothing stray, no private notes).
+1. Every file matches an allowlist by location and type: package code is
+   ``.py``, built-in themes ``.json``, plus an optional ``py.typed`` marker.
+   A stray ``.md`` (or any other type) under the package fails.
 2. The hygiene scan is clean over the unpacked contents.
 3. It installs into a fresh venv; ``md2xarticle --help`` exits 0, and a
    ``diagrams --cover`` run on the synthetic fixture writes the expected PNGs
@@ -23,16 +25,25 @@ import tarfile
 import tempfile
 import venv
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-import hygiene  # noqa: E402
+# The one hygiene scanner. dist_check runs from a repo checkout; tools/ does not ship.
+SCANNER = HERE.parent / "tools" / "hygiene.py"
 
 FIXTURE = HERE / "snapshots" / "synthetic_article.md"
 BINARY_ONLY = "mermaidx,novasvg,quickjs-ng,Pillow"
 EXPECTED_PNGS = {"01.png": (1600, 900), "02.png": (1600, 900), "03.png": (1600, 900), "04.png": (1600, 900), "cover.png": (1500, 600)}
-SDIST_TOP = {"src", "tests", "README.md", "LICENSE", "pyproject.toml", "PKG-INFO", ".gitignore"}
+# Package code is Python; the only data files are the built-in theme JSON.
+PACKAGE_SUFFIXES = {".py", ".json"}
+PACKAGE_NAMES = {"py.typed"}
+# Wheel metadata that hatchling writes (LICENSE via license-files).
+DIST_INFO_FILES = {"METADATA", "WHEEL", "RECORD", "entry_points.txt", "licenses/LICENSE"}
+# sdist: fixed top-level files, the package, and the test suite.
+SDIST_FILES = {"README.md", "LICENSE", "pyproject.toml", "PKG-INFO", ".gitignore"}
+TEST_SUFFIXES = {".py", ".json"}
+# Synthetic Markdown fixtures live only in tests/snapshots/.
+FIXTURE_DIR, FIXTURE_SUFFIXES = "tests/snapshots/", {".md", ".json"}
 
 
 class CheckFailed(Exception):
@@ -54,14 +65,36 @@ def sdist_names(path: Path) -> list[str]:
         return [m.name for m in t.getmembers() if m.isfile()]
 
 
+def _package_file(rel: str) -> bool:
+    """``rel`` is relative to the ``md2xarticle/`` package directory."""
+    name = PurePosixPath(rel).name
+    return name in PACKAGE_NAMES or PurePosixPath(rel).suffix in PACKAGE_SUFFIXES
+
+
+def allowed(kind: str, name: str) -> bool:
+    if kind == "wheel":
+        top, _, rest = name.partition("/")
+        if top == "md2xarticle":
+            return _package_file(rest)
+        if top.startswith("md2xarticle-") and top.endswith(".dist-info"):
+            return rest in DIST_INFO_FILES
+        return False
+    _, _, rel = name.partition("/")  # drop the md2xarticle-<version>/ root
+    if rel in SDIST_FILES:
+        return True
+    if rel.startswith("src/md2xarticle/"):
+        return _package_file(rel[len("src/md2xarticle/"):])
+    if rel.startswith(FIXTURE_DIR):
+        return PurePosixPath(rel).suffix in FIXTURE_SUFFIXES
+    if rel.startswith("tests/"):
+        return PurePosixPath(rel).suffix in TEST_SUFFIXES
+    return False
+
+
 def check_file_list(kind: str, names: list[str]) -> None:
     check(bool(names), f"{kind}: empty archive")
-    if kind == "wheel":
-        bad = [n for n in names if not (n.startswith("md2xarticle/") or n.split("/", 1)[0].endswith(".dist-info"))]
-        check(not any(n.startswith("tests/") for n in names), "wheel: ships tests/")
-    else:
-        bad = [n for n in names if len(n.split("/")) < 2 or n.split("/")[1] not in SDIST_TOP]
-    check(not bad, f"{kind}: unexpected files: {bad[:10]}")
+    bad = [n for n in names if not allowed(kind, n)]
+    check(not bad, f"{kind}: files outside the allowlist: {bad[:10]}")
     check("md2xarticle/themes/soft.json" in "\n".join(names), f"{kind}: built-in themes missing")
 
 
@@ -75,11 +108,13 @@ def unpack(kind: str, path: Path, dest: Path) -> None:
 
 
 def scan_hygiene(kind: str, root: Path) -> None:
-    deny = hygiene.load_denylist(hygiene.denylist_from_env())
-    findings = hygiene.scan(root, deny)
-    for f in findings:
-        print(f"hygiene ({kind}): {f}", file=sys.stderr)
-    check(not findings, f"{kind}: {len(findings)} hygiene finding(s); matched text is not printed")
+    """tools/hygiene.py over the unpacked artifact; it never prints matched text."""
+    check(SCANNER.is_file(), f"hygiene scanner missing: {SCANNER.name}")
+    p = subprocess.run([sys.executable, str(SCANNER), "--root", str(root)], capture_output=True, text=True, encoding="utf-8")
+    for line in p.stdout.splitlines():
+        if line.startswith("- "):
+            print(f"hygiene ({kind}): {line[2:]}", file=sys.stderr)
+    check(p.returncode == 0, f"{kind}: hygiene scan exited {p.returncode}: {p.stdout.splitlines()[0] if p.stdout else p.stderr.strip()}")
 
 
 def png_size(path: Path) -> tuple[int, int]:

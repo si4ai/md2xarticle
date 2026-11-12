@@ -423,13 +423,14 @@ or:    md2xarticle article.md --renderer mermaidx
 ## Testing
 
 - **Contract tests.** One suite per base class. Every subclass runs its base class's suite, so a new renderer, composer, writer, or platform must pass the same checks before it plugs in.
-- **Snapshot tests.** Synthetic Markdown fixtures in, expected HTML, outline, manifest, and PNG out.
+- **Snapshot tests.** Synthetic Markdown fixtures in, expected output out: today the `diagrams --json` result; HTML, outline, and manifest snapshots join in Phase 2. PNGs are checked by the image checks and determinism below, not against stored reference images.
 - **Image checks.** Every output PNG is checked for exact canvas size, aspect ratio, and margins: content centered within 4 px (body) or 8 px (titled cover), with a minimum margin of 4% of each side. Never cropped tight.
-- **Cross-platform drift.** CI runs on Windows, macOS, and Ubuntu across the supported Python versions. Each job renders the same fixtures and compares the images with a perceptual diff against the reference, so drift shows up as a failing check with the diff attached.
-- **Determinism.** Same input twice gives byte-identical HTML and manifest. With the pinned renderer stack (mermaidx==0.11.3, novasvg==0.11.5, quickjs-ng==0.18.0.1, Pillow==13.0.0), PNG output is byte-identical across fresh processes on one platform. Cross-OS comparison stays a perceptual diff.
-- **No network.** A conversion runs in a fresh process with a socket guard that fails the run on any connect or DNS lookup, even one the caller swallows.
-- **Packaging.** CI builds the wheel and sdist on all three OSes, checks their file lists, runs the hygiene scan over their contents, installs each into a fresh venv, and runs `md2xarticle --help` and a `diagrams --cover` conversion.
-- **Spec sync.** A test fails when the Python range or the pins stated here drift from `pyproject.toml`, or when the CI Python matrix drifts from that range. Workflows are linted with a pinned, checksummed actionlint.
+- **Cross-platform.** CI runs the full suite on Windows, macOS, and Ubuntu across the supported Python versions, so the image checks and determinism hold on each OS. There is no cross-OS perceptual diff against reference images yet; it is planned, not in CI.
+- **Determinism.** Same input twice gives byte-identical HTML and manifest. With the pinned renderer stack (mermaidx==0.11.3, novasvg==0.11.5, quickjs-ng==0.18.0.1, Pillow==13.0.0), PNG output is byte-identical across fresh processes on one platform. Byte equality across OSes is not expected.
+- **No network.** A conversion runs in a fresh process with a socket guard that fails the run on any connect or DNS lookup, even one the caller swallows. On Ubuntu, CI also converts inside `unshare -rn` (no network interfaces), after proving that connects and DNS fail there and succeed outside it.
+- **Packaging.** CI builds the wheel and sdist on all three OSes, checks every file against an allowlist (package code is `.py`, themes are `.json`), runs the hygiene scan over their contents, installs each into a fresh venv, and runs `md2xarticle --help` and a `diagrams --cover` conversion.
+- **Spec sync.** A test fails when the Python range or the pins stated here drift from `pyproject.toml`, or when any workflow names a Python outside that range or none covers it all. Workflows are linted with a pinned, checksummed actionlint.
+- **Skip budget.** The run fails when more tests skip than `tests/skip_budget.py` expects (1 today: the `ArticleWriter` contract until Phase 2).
 
 ## Hygiene
 
@@ -438,7 +439,7 @@ This is an open-source repository. Nothing personal goes in it.
 - No personal information, real names, usernames, local paths, email addresses, or secrets anywhere: code, package, tests, fixtures, docs, examples, commit messages.
 - Fixtures are synthetic. Real articles are tested locally and never committed.
 - Example paths are generic: `article.md`, `out/`, `images/01.png`.
-- A hygiene check runs in CI on every PR and push. It scans for email shapes, home-directory paths, secret shapes, and a deny-list kept outside the repo. A planted test file proves it fails visibly.
+- A hygiene check (`tools/hygiene.py`, the one scanner) runs in CI on every PR and push, over the tree, the commit messages, and the built wheel and sdist. It scans for email shapes, home-directory paths, secret shapes, and a deny-list kept outside the repo (`MD2XARTICLE_HYGIENE_DENYLIST`). Its planted fixture (`--selftest`) and the pytest suite prove it fails visibly.
 - md2xarticle ships no font files. DejaVu Sans comes with mermaidx, under its own license. Any font bundled here later must have a license that allows redistribution, shipped beside it.
 
 ## Roadmap
