@@ -183,5 +183,5 @@ def test_internal_error_exit_3(capsys, monkeypatch, tmp_path):
 def test_module_entry_point_help():
     proc = subprocess.run([sys.executable, "-m", "md2xarticle", "diagrams", "--help"], capture_output=True, text=True)
     assert proc.returncode == 0
-    for flag in ("--cover", "--theme", "--custom-path", "--size", "--only", "--json"):
+    for flag in ("--cover", "--theme", "--custom-path", "--size", "--only", "--json", "--verbose"):
         assert flag in proc.stdout
