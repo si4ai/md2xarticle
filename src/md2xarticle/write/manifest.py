@@ -60,5 +60,6 @@ class ManifestWriter(ArticleWriter):
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / MANIFEST_NAME
-        path.write_text(manifest_text(article), encoding="utf-8")
+        # newline="\n" / write_bytes: Windows write_text would turn LF into CRLF.
+        path.write_bytes(manifest_text(article).encode("utf-8"))
         return [path]
