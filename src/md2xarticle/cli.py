@@ -11,13 +11,21 @@ from pathlib import Path
 from md2xarticle import __version__, check, factory, outline
 from md2xarticle.shape.markers import build_article
 from md2xarticle.customize import Customization, load, parse_size
-from md2xarticle.errors import UsageError
+from md2xarticle.errors import UsageError, argparse_retry, print_error, usage_retry
 from md2xarticle.pipeline import DiagramsOptions, DiagramsResult
 from md2xarticle.privacy import Finding, findings_as_json, format_findings, scan_text
 from md2xarticle.theme import BUILTIN_THEMES, DEFAULT_THEME
 
 EXIT_OK, EXIT_FINDINGS, EXIT_USAGE, EXIT_INTERNAL = 0, 1, 2, 3
 COMMANDS = ("diagrams", "outline", "check")
+
+
+class _ErrorParser(argparse.ArgumentParser):
+    """Argparse errors use the same ``error:`` / ``try:`` shape as UsageError."""
+
+    def error(self, message: str) -> None:
+        print_error(message, try_cmd=argparse_retry(message))
+        self.exit(EXIT_USAGE)
 
 
 def _parse_only(text: str) -> frozenset[int]:
@@ -31,11 +39,11 @@ def _parse_only(text: str) -> frozenset[int]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+    p = _ErrorParser(
         prog="md2xarticle", description="Markdown in, X Article out."
     )
     p.add_argument("--version", action="version", version=f"md2xarticle {__version__}")
-    sub = p.add_subparsers(dest="command", metavar="COMMAND")
+    sub = p.add_subparsers(dest="command", metavar="COMMAND", parser_class=_ErrorParser)
     d = sub.add_parser(
         "diagrams",
         help="render every Mermaid block to a centered 16:9 PNG, plus an optional 5:2 cover",
@@ -44,11 +52,21 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("article", metavar="ARTICLE.md", type=Path)
     d.add_argument("-o", "--out", type=Path, default=None, help="output folder (default: out)")
     d.add_argument("--cover", action="store_true", help="also write images/cover.png at 5:2")
-    d.add_argument("--theme", choices=BUILTIN_THEMES, default=None, help=f"diagram theme (default: {DEFAULT_THEME})")
+    d.add_argument(
+        "--theme",
+        default=None,
+        metavar="NAME",
+        help=f"diagram theme: {', '.join(BUILTIN_THEMES)} (default: {DEFAULT_THEME})",
+    )
     d.add_argument("--custom-path", type=Path, default=None, metavar="FILE", help="TOML customization file")
     d.add_argument("--size", default=None, metavar="WxH", help="body image size, 16:9 (default: 1600x900)")
     d.add_argument("--only", type=_parse_only, default=None, metavar="N[,N]", help="render only these diagrams (1-based)")
-    d.add_argument("--renderer", default=factory.DEFAULT_RENDERER, choices=sorted(factory.RENDERERS))
+    d.add_argument(
+        "--renderer",
+        default=factory.DEFAULT_RENDERER,
+        metavar="NAME",
+        help="diagram renderer (default: mermaidx)",
+    )
     d.add_argument("--json", action="store_true", help="print a JSON summary to stdout")
     d.add_argument("-v", "--verbose", action="store_true", help="full error details")
     check.add_scan_arguments(d, require_privacy_flag=True)
@@ -144,6 +162,11 @@ def _summary_json(
 
 def run_diagrams(args: argparse.Namespace) -> int:
     warnings: list[str] = []
+    if args.theme is not None and args.theme not in BUILTIN_THEMES:
+        raise UsageError(
+            f"unknown theme {args.theme!r}; built-in themes: {', '.join(BUILTIN_THEMES)}",
+            try_cmd=f"md2xarticle diagrams {args.article} --theme {DEFAULT_THEME}",
+        )
     deny = check.load_deny(args.deny_list) if args.check_privacy else ()
     custom = load(args.custom_path) if args.custom_path is not None else Customization()
     if custom.theme_name and args.theme and custom.theme_name != args.theme:
@@ -152,14 +175,22 @@ def run_diagrams(args: argparse.Namespace) -> int:
     try:
         text = args.article.read_text(encoding="utf-8")
     except FileNotFoundError:
-        raise UsageError(f"file not found: {args.article}") from None
+        raise UsageError(
+            f"file not found: {args.article}",
+            try_cmd=f"md2xarticle diagrams {args.article}",
+        ) from None
     except (OSError, UnicodeDecodeError) as exc:
-        raise UsageError(f"cannot read {args.article}: {exc}") from None
+        raise UsageError(
+            f"cannot read {args.article}: {exc}",
+            try_cmd=f"md2xarticle diagrams {args.article}",
+        ) from None
 
     platform = factory.detect_platform()
     out_dir = args.out if args.out is not None else platform.default_output_dir()
     opts = _options(args, custom, out_dir, warnings)
-    pipeline = factory.build_pipeline(theme, renderer=args.renderer, platform=platform)
+    pipeline = factory.build_pipeline(
+        theme, renderer=args.renderer, platform=platform, article=args.article
+    )
     result = pipeline.run_diagrams(text, opts)
     result.warnings[:0] = warnings
     notes = platform.notes()
@@ -172,12 +203,11 @@ def run_diagrams(args: argparse.Namespace) -> int:
         message = r.error or "unknown error"
         if not args.verbose:
             message = _short(message)
-        print(
-            f"error: diagram {r.index:02d} ({args.article.name} line {r.line}) "
+        print_error(
+            f"diagram {r.index:02d} ({args.article.name} line {r.line}) "
             f"failed to render: {message}",
-            file=sys.stderr,
+            try_cmd=_retry_hint(args, r.index),
         )
-        print(f"try:   {_retry_hint(args, r.index)}", file=sys.stderr)
 
     if args.json:
         print(json.dumps(_summary_json(args, out_dir, result, notes, manifest, findings), indent=2))
@@ -205,8 +235,10 @@ def run_diagrams(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and not argv[0].startswith("-") and argv[0] not in COMMANDS:
-        print("error: the full conversion arrives in Phase 2", file=sys.stderr)
-        print(f"try:   md2xarticle diagrams {argv[0]}", file=sys.stderr)
+        print_error(
+            "the full conversion arrives in Phase 2",
+            try_cmd=f"md2xarticle diagrams {argv[0]}",
+        )
         return EXIT_USAGE
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -220,14 +252,26 @@ def main(argv: list[str] | None = None) -> int:
             return check.run_check(args)
         return run_diagrams(args)
     except UsageError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print_error(
+            str(exc),
+            try_cmd=usage_retry(
+                exc,
+                article=getattr(args, "article", "article.md"),
+                command=args.command or "diagrams",
+                custom_path=getattr(args, "custom_path", None),
+                size_flag=getattr(args, "size", None) is not None,
+            ),
+            or_cmd=exc.or_cmd,
+        )
         return EXIT_USAGE
     except Exception as exc:  # last-resort guard; exit 3 means a bug in md2xarticle
-        print(f"error: internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
-        if getattr(args, "verbose", False):
+        verbose = getattr(args, "verbose", False)
+        command = args.command or "diagrams"
+        article = getattr(args, "article", "article.md")
+        print_error(
+            f"internal error: {type(exc).__name__}: {exc}",
+            try_cmd=None if verbose else f"md2xarticle {command} {article} --verbose",
+        )
+        if verbose:
             traceback.print_exc()
-        else:
-            command = args.command or "diagrams"
-            article = getattr(args, "article", "ARTICLE.md")
-            print(f"try:   md2xarticle {command} {article} --verbose", file=sys.stderr)
         return EXIT_INTERNAL

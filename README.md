@@ -10,6 +10,8 @@ Run `md2xarticle article.md -o out/ --json`.
 Read `out/manifest.json`.
 Paste `out/article.html` into the X Article editor, then upload each image in manifest order at its marker.
 
+The short bot skill (install, commands, `--json` and `manifest.json`, upload order, exit codes, privacy check) is in [docs/BOT-SKILL.md](docs/BOT-SKILL.md).
+
 ## Why
 
 X Articles accept rich text, but only in a narrow shape: three text levels, native tables and code blocks, and images that must be uploaded in the editor because paste drops them. Long-form Markdown does not fit that shape out of the box.
@@ -319,6 +321,7 @@ The full conversion: HTML, outline, images, manifest.
 | `--heading-map MAP` | auto | Override the heading restructuring. |
 | `--check-privacy` | off | Run the privacy scan after writing. |
 | `--json` | off | Print a machine-readable summary to stdout instead of text. |
+| `-v, --verbose` | off | Full renderer message on a failed diagram, and a traceback on an internal error (exit 3). Without it, exit 3 is a short message and a `try:` line, never a traceback. |
 | `--open` | off | Open the output folder when done. |
 
 Sample output:

@@ -9,7 +9,7 @@ from pathlib import Path
 from md2xarticle.compose.base import ImageComposer
 from md2xarticle.compose.body import BodyImageComposer
 from md2xarticle.compose.cover import CoverComposer
-from md2xarticle.errors import UsageError
+from md2xarticle.errors import UsageError, renderer_usage
 from md2xarticle.fonts import subtitle_font_path, title_font_path
 from md2xarticle.parse.base import MarkdownParser
 from md2xarticle.parse.markdown_it import MarkdownItParser
@@ -78,19 +78,22 @@ def make_writer(name: str = "manifest") -> ArticleWriter:
         ) from None
 
 
-def make_renderer(name: str) -> DiagramRenderer:
-    try:
-        renderer = RENDERERS[name]()
-    except KeyError:
-        raise UsageError(
-            f"unknown renderer {name!r}; available: {', '.join(RENDERERS)}"
-        ) from None
+def make_renderer(name: str, article: str | Path = "article.md") -> DiagramRenderer:
+    cls = RENDERERS.get(name)
+    if cls is None:
+        raise renderer_usage(name, article=article)
+    renderer = cls()
     if not renderer.available():
-        raise UsageError(f"renderer {name!r} is not installed\ntry:   {renderer.install_hint}")
+        raise renderer_usage(name, article=article)
     return renderer
 
 
-def build_pipeline(theme: Theme, renderer: str = DEFAULT_RENDERER, platform: Platform | None = None) -> Pipeline:
+def build_pipeline(
+    theme: Theme,
+    renderer: str = DEFAULT_RENDERER,
+    platform: Platform | None = None,
+    article: str | Path = "article.md",
+) -> Pipeline:
     platform = platform or detect_platform()
     font = title_font_path(platform.font_dirs())
     sub_font = subtitle_font_path(platform.font_dirs())
@@ -100,7 +103,7 @@ def build_pipeline(theme: Theme, renderer: str = DEFAULT_RENDERER, platform: Pla
 
     return Pipeline(
         parser=MarkdownItParser(),
-        renderer=make_renderer(renderer),
+        renderer=make_renderer(renderer, article=article),
         body=BodyImageComposer(theme),
         make_cover=make_cover,
         platform=platform,
