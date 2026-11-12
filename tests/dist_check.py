@@ -91,11 +91,17 @@ def allowed(kind: str, name: str) -> bool:
     return False
 
 
+# Every built-in theme must ship; tests/test_dist_check.py keeps this in step with the package.
+THEMES = ("mono", "soft", "warm", "x-light", "x-dark")
+
+
 def check_file_list(kind: str, names: list[str]) -> None:
     check(bool(names), f"{kind}: empty archive")
     bad = [n for n in names if not allowed(kind, n)]
     check(not bad, f"{kind}: files outside the allowlist: {bad[:10]}")
-    check("md2xarticle/themes/soft.json" in "\n".join(names), f"{kind}: built-in themes missing")
+    joined = "\n".join(names)
+    missing = [t for t in THEMES if f"md2xarticle/themes/{t}.json" not in joined]
+    check(not missing, f"{kind}: built-in themes missing: {missing}")
 
 
 def unpack(kind: str, path: Path, dest: Path) -> None:

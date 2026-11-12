@@ -70,6 +70,7 @@ class CoverComposer(ImageComposer):
         if self.title:
             font, box = self._text_layout(self.title, self.font_path, round(ch * TITLE_HEIGHT), avail_w)
             lines.append((self.title, font, box))
+        self._title_lines = len(lines)
         if self.subtitle:
             font, box = self._text_layout(
                 self.subtitle, self.subtitle_font_path, round(ch * SUBTITLE_HEIGHT), avail_w
@@ -102,9 +103,11 @@ class CoverComposer(ImageComposer):
         block_h = text_h + gap + (fitted.height if fitted is not None else 0)
         y = (ch - block_h) // 2
         draw = ImageDraw.Draw(canvas)
-        for text, font, tbox in lines:
+        sub_color = self.theme.subtitle_color or self.theme.title_color
+        for i, (text, font, tbox) in enumerate(lines):
             tw = tbox[2] - tbox[0]
-            draw.text(((cw - tw) // 2 - tbox[0], y - tbox[1]), text, font=font, fill=self.theme.title_color)
+            fill = self.theme.title_color if i < self._title_lines else sub_color
+            draw.text(((cw - tw) // 2 - tbox[0], y - tbox[1]), text, font=font, fill=fill)
             y += tbox[3] - tbox[1] + sub_gap
         if lines:
             y += gap - sub_gap

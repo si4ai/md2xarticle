@@ -60,7 +60,7 @@ def test_error_names_block_line_and_retry_command(full_run):
 
 def test_images_are_centered_on_exact_canvas(full_run):
     _, out_dir = full_run
-    canvas = load_builtin("soft").canvas
+    canvas = load_builtin("mono").canvas  # no --theme: the default
     names = sorted(p.name for p in (out_dir / "images").iterdir())
     assert names == ["01.png", "02.png", "03.png", "04.png", "cover.png"]
     for n in ("01", "02", "03", "04"):

@@ -2,7 +2,7 @@
 
 Schema (every key optional)::
 
-    theme = "soft"            # built-in base theme
+    theme = "mono"            # built-in base theme
     size = "1600x900"         # body images, must be 16:9
     cover_size = "1500x600"   # cover, must be 5:2
     cover = "diagram:2"       # "diagram:N" or "title" (title only)
@@ -22,6 +22,7 @@ Schema (every key optional)::
     [palette]                 # #RRGGBB colors
     canvas = "#FFFFFF"
     title = "#111111"
+    subtitle = "#536471"      # cover subtitle (default: the title color)
     primary = "#D9EEF2"
     primary_border = "#2F8A8A"
     primary_text = "#163239"
@@ -80,7 +81,7 @@ _PALETTE_TO_VARS = {
     "line": ("lineColor",),
     "text": ("textColor", "titleColor"),
 }
-_PALETTE_KEYS = set(_PALETTE_TO_VARS) | {"canvas", "title"}
+_PALETTE_KEYS = set(_PALETTE_TO_VARS) | {"canvas", "title", "subtitle"}
 _DIAGRAM_KEYS = {"id", "layout"}
 
 
@@ -117,6 +118,8 @@ class Customization:
             changes["canvas"] = self.palette["canvas"]
         if "title" in self.palette:
             changes["title_color"] = self.palette["title"]
+        if "subtitle" in self.palette:
+            changes["subtitle_color"] = self.palette["subtitle"]
         tv.update(self.theme_variables)
         s = self.style
         if "corner_radius" in s:

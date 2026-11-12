@@ -11,8 +11,8 @@ from typing import Any
 
 from md2xarticle.errors import UsageError
 
-BUILTIN_THEMES = ("soft", "mono", "warm")
-DEFAULT_THEME = "soft"
+BUILTIN_THEMES = ("mono", "soft", "warm", "x-light", "x-dark")
+DEFAULT_THEME = "mono"
 HAND_DRAWN_SEED = 1
 _HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -29,6 +29,7 @@ class Theme:
     name: str
     canvas: str
     title_color: str
+    subtitle_color: str | None = None  # cover subtitle; None uses title_color
     corner_radius: int = 8
     edge_width: float = 2.0
     margin: float = 0.06
@@ -80,4 +81,6 @@ def load_builtin(name: str) -> Theme:
     theme = Theme(**data)
     hex_to_rgb(theme.canvas)
     hex_to_rgb(theme.title_color)
+    if theme.subtitle_color is not None:
+        hex_to_rgb(theme.subtitle_color)
     return theme

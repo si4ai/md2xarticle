@@ -10,6 +10,7 @@ from PIL import Image
 from md2xarticle import factory
 from md2xarticle.errors import DiagramRenderError
 from md2xarticle.model import RenderedImage
+from md2xarticle.theme import BUILTIN_THEMES, load_builtin
 
 RENDERERS = sorted(factory.RENDERERS.items())
 # The stadium and cylinder shapes use a seeded random path; they must still be stable.
@@ -49,7 +50,10 @@ def test_render_invalid_raises(renderer, soft_theme):
     assert " on line " not in str(info.value)  # renderer line numbers are not trusted
 
 
-def test_render_is_deterministic(renderer, soft_theme):
-    a = renderer.render(VALID, soft_theme).rasterize(2)
-    b = renderer.render(VALID, soft_theme).rasterize(2)
+@pytest.mark.parametrize("theme_name", BUILTIN_THEMES)
+def test_render_is_deterministic(renderer, theme_name):
+    theme = load_builtin(theme_name)
+    assert theme.mermaid_config()["handDrawnSeed"] == 1
+    a = renderer.render(VALID, theme).rasterize(2)
+    b = renderer.render(VALID, theme).rasterize(2)
     assert a == b

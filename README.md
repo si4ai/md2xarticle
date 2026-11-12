@@ -122,7 +122,7 @@ The tool picks the mapping, writes it to `outline.txt`, and prints it, so a huma
 Each Mermaid block is rendered to a PNG, trimmed, and placed on a fixed canvas.
 
 - **Renderer:** [mermaidx](https://pypi.org/project/mermaidx/) by default, pinned to mermaidx==0.11.3, novasvg==0.11.5, and quickjs-ng==0.18.0.1, with Pillow==13.0.0 for composition. It runs real Mermaid inside an embedded QuickJS engine and rasterizes with novasvg, so it needs no Node and no Chrome. Known costs: about 0.5 to 2 seconds per diagram, and bundled-font metrics can differ slightly from a browser render. Fidelity notes are in [Phase 0 findings](docs/PHASE0-FINDINGS.md).
-- **Theme:** the default is `soft`: DejaVu Sans (from mermaidx), a soft palette, rounded boxes, and generous spacing. `mono` (gray on white) and `warm` (amber on cream) are the other built-ins. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
+- **Theme:** the default is `mono`: DejaVu Sans (from mermaidx), neutral gray on white, rounded boxes, and generous spacing. The other built-ins are `soft` (pale teal on white), `warm` (amber on cream), and two matched to X's own palette: `x-light` (white, text #0F1419, borders #CFD9DE) and `x-dark` (black, text #E7E9EA, borders #2F3336). Both X themes use X blue (#1D9BF0) only as an accent, for the gitGraph main branch, tags, and the first pie slice, and draw a cover subtitle in X's secondary text gray. Every built-in starts from Mermaid's `base` theme with its own palette; Mermaid's own `default` theme is never used. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
 - **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with an optional title and subtitle above the diagram, from front matter `title` and `subtitle` (or `cover_title` and `cover_subtitle` in the customization file). Upscaling is capped at 3x the native render, so a tiny diagram is not blown up. Every image must be the exact canvas size, with content centered within 4 px (body) or 8 px (cover with a title or subtitle), and a minimum margin of 4% of each side.
 - **Never cropped tight, never off-center.** A check measures the margins of every output image against those tolerances.
 - **Readable text.** A flowchart that is limited by the canvas height is also rendered with wider label wrapping (320 px instead of Mermaid's 200 px), and whichever draws larger is kept. The cover makes this choice again against its own diagram box, below the title and subtitle. The source is never rewritten. When a diagram still has to shrink below 0.65x on a body image or the cover, so its text drops under about 10 px, the run warns and names the next step: a `layout = "LR"` override for a flowchart, or splitting the diagram.
@@ -304,7 +304,7 @@ The full conversion: HTML, outline, images, manifest.
 |---|---|---|
 | `-o, --out DIR` | `./out` (from `Platform`) | Output folder. Created if missing. |
 | `--cover` | off | Also build `images/cover.png` at 5:2. Uses front matter `title` and `subtitle` if present. |
-| `--theme NAME` | `soft` | Diagram theme. Overridden by `--custom-path` when that file sets a theme. |
+| `--theme NAME` | `mono` | Diagram theme: `mono`, `soft`, `warm`, `x-light`, or `x-dark`. Overridden by `--custom-path` when that file sets a theme. |
 | `--custom-path FILE` | off | One TOML customization file for this run. See [Customization](#customization). |
 | `--size WxH` | `1600x900` | Body image size. Must be 16:9 for now. |
 | `--only N[,N]` | all diagrams | Render only these diagrams, by 1-based index. Used in the error retry hint. |
@@ -373,7 +373,7 @@ Prints the restructured heading outline only, so the structure can be checked be
 md2xarticle article.md --custom-path article.toml
 ```
 
-With no flag, the built-in defaults apply: theme `soft`, and Mermaid source is rendered as written.
+With no flag, the built-in defaults apply: theme `mono`, and Mermaid source is rendered as written.
 
 The file may set the theme (palette, corner radius, spacing, label wrapping, gitGraph label rotation; font later), per-diagram layout overrides, cover choice and text, and image sizes. A value in the file wins over the matching flag (`--theme`, `--size`), and the run prints a warning when that happens.
 
@@ -382,7 +382,7 @@ The file is read with the standard library `tomllib`, so no extra TOML dependenc
 Example:
 
 ```toml
-theme = "soft"
+theme = "mono"
 size = "1600x900"
 cover_size = "1500x600"
 cover = "diagram:2"
@@ -475,7 +475,6 @@ Ask the owner. Do not guess.
 
 - **What X paste keeps.** Spacing, nested lists, links, blockquotes, inline code, tables, and code blocks are unmeasured until the Phase 0 paste test. The HTML writer is shaped by that result, not by assumption. The owner runs that test.
 - **The owner's manual edits.** The list of hand edits made in the X editor on the real article. Each one becomes an acceptance test.
-- **Owner theme samples.** The default theme is `soft`. An owner pick of samples only confirms or changes that default. Palette, corner radius, spacing, and later the font are customization, not a one-time lock.
 - **Image placement.** How close to one-step placement X allows. Markers plus manifest is the baseline; anything better depends on what the editor permits without browser automation.
 - **`--watch` mode.** Wanted or not.
 - **Caption source rules.** Which sources win, and whether a diagram with no explicit caption gets one at all.
@@ -484,8 +483,8 @@ Ask the owner. Do not guess.
 
 Decided:
 
-- **`--custom-path FILE`.** One TOML customization file per run, typically one file per article. No flag means built-in defaults (theme `soft`, Mermaid rendered as written). See [Customization](#customization).
-- **Default theme.** `soft`. Further look-and-feel is customization.
+- **`--custom-path FILE`.** One TOML customization file per run, typically one file per article. No flag means built-in defaults (theme `mono`, Mermaid rendered as written). See [Customization](#customization).
+- **Default theme.** `mono` (neutral gray on white), picked by the owner from the theme samples. `soft`, `warm`, `x-light`, and `x-dark` are options, and Mermaid's own `default` theme is not used. Further look-and-feel is customization.
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:
 
