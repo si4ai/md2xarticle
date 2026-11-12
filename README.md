@@ -97,23 +97,34 @@ These are the facts the design is built around. Anything not listed here is unkn
 
 X has two heading levels, so the tool restructures instead of renaming.
 
+The first `#`, or a front matter `title`, is the article title. It does not appear in the body.
+
+When the document uses a single `#` as that title, the body mapping is:
+
 | Markdown | X Article |
 |---|---|
-| `#` (first one, or front matter `title`) | Article title (not in the body) |
-| `#` (others) or `##` | Heading |
+| `##` | Heading |
 | `###` | Subheading |
 | `####` and deeper | Bold lead-in paragraph, or a list item when siblings form a list |
 
-The exact mapping shifts by one level when a document has a single `#` used as the title. The tool picks the mapping, writes it to `outline.txt`, and prints it, so a human or bot can check the structure before pasting. `--heading-map` overrides the choice.
+Otherwise the mapping is:
+
+| Markdown | X Article |
+|---|---|
+| `#` or `##` | Heading |
+| `###` | Subheading |
+| `####` and deeper | Bold lead-in paragraph, or a list item when siblings form a list |
+
+The tool picks the mapping, writes it to `outline.txt`, and prints it, so a human or bot can check the structure before pasting. `--heading-map` overrides the choice.
 
 ### Diagrams
 
 Each Mermaid block is rendered to a PNG, trimmed, and placed on a fixed canvas.
 
-- **Renderer:** [mermaidx](https://pypi.org/project/mermaidx/) by default. It runs real Mermaid inside an embedded QuickJS engine and rasterizes with novasvg, so it needs no Node and no Chrome. Known costs: about one second per diagram, and bundled-font metrics can differ slightly from a browser render.
-- **Theme:** a clean bundled font, a soft palette, rounded boxes, and generous spacing. The exact theme is confirmed in Phase 0 after seeing real mermaidx output.
-- **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with optional title text.
-- **Never cropped tight, never off-center.** A check measures the margins of every output image.
+- **Renderer:** [mermaidx](https://pypi.org/project/mermaidx/) by default, pinned to mermaidx==0.11.3, novasvg==0.11.5, and quickjs-ng==0.18.0.1, with Pillow==13.0.0 for composition. It runs real Mermaid inside an embedded QuickJS engine and rasterizes with novasvg, so it needs no Node and no Chrome. Known costs: about 0.5 to 2 seconds per diagram, and bundled-font metrics can differ slightly from a browser render. Fidelity notes are in [Phase 0 findings](docs/PHASE0-FINDINGS.md).
+- **Theme:** the default is `soft`: a clean bundled font, a soft palette, rounded boxes, and generous spacing. Palette, corner radius, spacing, and later the font are set in a customization file. See [Customization](#customization).
+- **Composition:** Pillow trims the render, scales it to fit with even padding, and centers it on a 16:9 canvas (default 1600x900, set by `--size`). The cover composer does the same at 5:2 (default 1500x600) with optional title text. Every image must be the exact canvas size, with content centered within 4 px (body) or 8 px (titled cover), and a minimum margin of 4% of each side.
+- **Never cropped tight, never off-center.** A check measures the margins of every output image against those tolerances.
 
 ### Image markers and the manifest
 
@@ -291,8 +302,10 @@ The full conversion: HTML, outline, images, manifest.
 |---|---|---|
 | `-o, --out DIR` | `./out` (from `Platform`) | Output folder. Created if missing. |
 | `--cover` | off | Also build `images/cover.png` at 5:2. Uses front matter `title` and `subtitle` if present. |
-| `--theme NAME` | `default` | Diagram theme. |
+| `--theme NAME` | `soft` | Diagram theme. Overridden by `--custom-path` when that file sets a theme. |
+| `--custom-path FILE` | off | One TOML customization file for this run. See [Customization](#customization). |
 | `--size WxH` | `1600x900` | Body image size. Must be 16:9 for now. |
+| `--only N[,N]` | all diagrams | Render only these diagrams, by 1-based index. Used in the error retry hint. |
 | `--renderer NAME` | `mermaidx` | Diagram renderer. |
 | `--heading-map MAP` | auto | Override the heading restructuring. |
 | `--check-privacy` | off | Run the privacy scan after writing. |
@@ -340,7 +353,7 @@ then upload images in order at each [Image NN] marker.
 
 ### `md2xarticle diagrams ARTICLE.md [-o OUT] [--cover]`
 
-Images only: render every Mermaid block to a polished, centered 16:9 PNG, plus an optional 5:2 cover. This is the Phase 1 milestone and is useful on its own for an article whose text is already in the X editor and only needs better images.
+Images only: render every Mermaid block to a polished, centered 16:9 PNG, plus an optional 5:2 cover. This is the Phase 1 milestone and is useful on its own for an article whose text is already in the X editor and only needs better images. `--only`, `--theme`, `--custom-path`, `--size`, and `--renderer` apply here too.
 
 ### `md2xarticle check ARTICLE.md`
 
@@ -349,6 +362,37 @@ Privacy scan only. Prints findings with line numbers. Writes nothing.
 ### `md2xarticle outline ARTICLE.md`
 
 Prints the restructured heading outline only, so the structure can be checked before converting.
+
+### Customization
+
+`--custom-path FILE` points to one TOML file with the theme, layout, cover, and sizes for that run. The usual pattern is one file per Markdown article:
+
+```
+md2xarticle article.md --custom-path article.toml
+```
+
+With no flag, the built-in defaults apply: theme `soft`, and Mermaid source is rendered as written.
+
+The file may set the theme (palette, corner radius, spacing; font later), per-diagram layout overrides, cover choice, and image sizes.
+
+Python 3.11 and later reads TOML with the standard library `tomllib`. If 3.10 stays supported, the 3.10 extra is `tomli`.
+
+Example:
+
+```toml
+theme = "soft"
+size = "1600x900"
+cover_size = "1500x600"
+cover = "diagram:2"
+
+[style]
+corner_radius = 8
+spacing = 16
+
+[[diagrams]]
+id = 1
+layout = "LR"
+```
 
 ## Output contract
 
@@ -380,9 +424,9 @@ or:    md2xarticle article.md --renderer mermaidx
 
 - **Contract tests.** One suite per base class. Every subclass runs its base class's suite, so a new renderer, composer, writer, or platform must pass the same checks before it plugs in.
 - **Snapshot tests.** Synthetic Markdown fixtures in, expected HTML, outline, manifest, and PNG out.
-- **Image checks.** Every output PNG is checked for exact size, aspect ratio, and margins (centered within a tolerance, never cropped tight).
+- **Image checks.** Every output PNG is checked for exact canvas size, aspect ratio, and margins: content centered within 4 px (body) or 8 px (titled cover), with a minimum margin of 4% of each side. Never cropped tight.
 - **Cross-platform drift.** CI runs on Windows, macOS, and Ubuntu across the supported Python versions. Each job renders the same fixtures and compares the images with a perceptual diff against the reference, so drift shows up as a failing check with the diff attached.
-- **Determinism.** Same input twice gives byte-identical HTML and manifest.
+- **Determinism.** Same input twice gives byte-identical HTML and manifest. With the pinned renderer stack (mermaidx==0.11.3, novasvg==0.11.5, quickjs-ng==0.18.0.1, Pillow==13.0.0), PNG output is byte-identical across fresh processes on one platform. Cross-OS comparison stays a perceptual diff.
 
 ## Hygiene
 
@@ -405,8 +449,8 @@ flowchart LR
 
 | Phase | Work | Done when |
 |---|---|---|
-| 0. Measure | Render a synthetic diagram set with mermaidx on all three OSes and note fidelity gaps. Paste test: which elements survive paste into the X editor (spacing, nested lists, links, blockquotes, inline code, tables, code blocks). Show theme samples to the owner. | A short findings doc is committed: a paste-survival table, renderer notes, and the owner's theme choice. |
-| 1. Diagrams | `md2xarticle diagrams article.md` produces polished, centered 16:9 PNGs and an optional 5:2 cover. ABC skeleton, contract tests, CI matrix, and hygiene check land here. | The owner drops the images into an existing X draft and approves them. CI is green on all three OSes. |
+| 0. Measure | Render a synthetic diagram set with mermaidx on all three OSes and note fidelity gaps. Paste test: which elements survive paste into the X editor (spacing, nested lists, links, blockquotes, inline code, tables, code blocks). Show theme samples to the owner. | Renderer notes are in [docs/PHASE0-FINDINGS.md](docs/PHASE0-FINDINGS.md). Still open: the paste-survival table (the owner runs the X paste test) and an owner pick of theme samples, which only confirms the default. |
+| 1. Diagrams | `md2xarticle diagrams article.md` produces polished, centered 16:9 PNGs and an optional 5:2 cover. ABC skeleton, contract tests, CI matrix, and hygiene check land here. | The owner drops the images into an existing X draft and approves them. CI is green on all three OSes. Every image is the exact canvas size, with content centered within 4 px (body) or 8 px (titled cover), and a minimum margin of 4% of each side. |
 | 2. Article | HTML writer shaped by the Phase 0 paste table, heading restructuring, `outline.txt`, markers, captions, `manifest.json`, `--json`. | A synthetic long-form fixture pastes into X with no text cleanup. The owner's manual-edit list passes as acceptance tests. |
 | 3. Release | Privacy scan, error messages with next commands, README and docs, a short skill doc for bots, PyPI release from CI. | `pip install md2xarticle` works on Windows, WSL, Linux, and macOS from a clean environment. |
 
@@ -420,15 +464,20 @@ Phase 1 comes before the full pipeline on purpose: a real article is already dra
 
 Ask the owner. Do not guess.
 
-- **What X paste keeps.** Spacing, nested lists, links, blockquotes, inline code, tables, and code blocks are unmeasured until the Phase 0 paste test. The HTML writer is shaped by that result, not by assumption.
+- **What X paste keeps.** Spacing, nested lists, links, blockquotes, inline code, tables, and code blocks are unmeasured until the Phase 0 paste test. The HTML writer is shaped by that result, not by assumption. The owner runs that test.
 - **The owner's manual edits.** The list of hand edits made in the X editor on the real article. Each one becomes an acceptance test.
-- **Final diagram theme.** Font, palette, corner radius, and spacing, chosen after the owner sees real mermaidx output.
+- **Owner theme samples.** The default theme is `soft`. An owner pick of samples only confirms or changes that default. Palette, corner radius, spacing, and later the font are customization, not a one-time lock.
 - **Image placement.** How close to one-step placement X allows. Markers plus manifest is the baseline; anything better depends on what the editor permits without browser automation.
 - **Supported Python versions.** Proposed: 3.10 to 3.13, pending mermaidx wheel coverage.
 - **`--watch` mode.** Wanted or not.
 - **Caption source rules.** Which sources win, and whether a diagram with no explicit caption gets one at all.
-- **Renderer fallback.** If mermaidx output falls short of the theme bar in Phase 0, which alternate wins: mmdr (fast, not official Mermaid) or opt-in mmdc (needs Node and Chromium).
+- **Renderer fallback.** If mermaidx output falls short of the theme bar, which alternate wins: mmdr (fast, not official Mermaid) or opt-in mmdc (needs Node and Chromium).
 - **Cover content.** What the 5:2 cover is built from: a chosen diagram, the title on a themed background, or a supplied image.
+
+Decided:
+
+- **`--custom-path FILE`.** One TOML customization file per run, typically one file per article. No flag means built-in defaults (theme `soft`, Mermaid rendered as written). See [Customization](#customization).
+- **Default theme.** `soft`. Further look-and-feel is customization.
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:
 
