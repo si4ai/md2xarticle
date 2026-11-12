@@ -21,9 +21,7 @@ class BodyImageComposer(ImageComposer):
         canvas = Image.new("RGB", size, hex_to_rgb(self.theme.canvas))
         if image is None:
             return canvas
-        m = self.theme.margin
-        box = (round(cw * (1 - 2 * m)), round(ch * (1 - 2 * m)))
-        fitted = fit(image, box, self.theme.canvas, self.theme.max_scale)
+        fitted = fit(image, self.diagram_box(size), self.theme.canvas, self.theme.max_scale)
         if fitted is not None:
             canvas.paste(fitted, ((cw - fitted.width) // 2, (ch - fitted.height) // 2))
         return canvas

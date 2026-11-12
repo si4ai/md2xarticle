@@ -266,3 +266,44 @@ def test_readme_customization_example_is_valid():
     example = re.search(r"```toml\n(.*?)```", readme, re.DOTALL).group(1)
     c = from_dict(tomllib.loads(example))
     assert c.cover_subtitle == "" and c.style["wrap_width"] == 280 and c.style["rotate_commit_labels"] is False
+
+
+# --- cover decides wrap and text size against its own box ---------------------
+
+
+def test_cover_takes_the_wider_wrap_when_only_the_cover_is_height_limited(tmp_path):
+    # 1100x500 is width-limited in the 1408x792 body box, so the body keeps the
+    # default render. Under a cover title the box is about 1320x440, where it is
+    # height-limited and the 1300x380 wide-wrap render draws larger.
+    r = SizedRenderer({None: (1100, 500), WIDE_WRAP: (1300, 380)})
+    text = "---\ntitle: Synthetic Cover\n---\n\n" + FLOW_TD
+    result = make_pipeline(r).run_diagrams(text, DiagramsOptions(out_dir=tmp_path, cover=True))
+    assert r.calls == [None, WIDE_WRAP]  # the body render is reused, not drawn again
+    soft = load_builtin("soft")
+    cover = factory.COVER_COMPOSERS["cover"](soft, title="Synthetic Cover")
+    box = cover.diagram_box((1500, 600))
+    assert 1100 * box[1] < 500 * box[0]  # height-limited on the cover only
+    with Image.open(tmp_path / "images" / "cover.png") as im:
+        want = cover.compose(fake_rendered(1300, 380, soft.canvas), (1500, 600))
+        assert im.convert("RGB").tobytes() == want.tobytes()
+    assert not [w for w in result.warnings if "text is small" in w], result.warnings
+
+
+def test_cover_warns_when_its_box_makes_text_small(tmp_path):
+    # Readable on the body (about 0.79x), too small under a cover title.
+    r = SizedRenderer({None: (500, 1000)})
+    text = "---\ntitle: Synthetic Cover\n---\n\n" + SEQ
+    result = make_pipeline(r).run_diagrams(text, DiagramsOptions(out_dir=tmp_path, cover=True))
+    assert not [w for w in result.warnings if w.startswith("image 01:")], result.warnings
+    assert any(w.startswith("cover: the diagram is scaled to") and "split it" in w for w in result.warnings), result.warnings
+
+
+def test_cover_diagram_box_shrinks_under_text(soft_theme):
+    cover = factory.COVER_COMPOSERS["cover"]
+    plain = cover(soft_theme).diagram_box((1500, 600))
+    titled = cover(soft_theme, title="T").diagram_box((1500, 600))
+    both = cover(soft_theme, title="T", subtitle="S").diagram_box((1500, 600))
+    m = soft_theme.margin
+    assert plain == (round(1500 * (1 - 2 * m)), round(600 * (1 - 2 * m)))
+    assert plain[0] == titled[0] == both[0]
+    assert plain[1] > titled[1] > both[1]

@@ -62,13 +62,10 @@ class CoverComposer(ImageComposer):
                 return font, box
             px = max(MIN_FONT_PX, int(px * 0.9))
 
-    def compose(self, image: RenderedImage | None, size: tuple[int, int]) -> Image.Image:
-        self.check_size(size)
+    def _lines(self, size: tuple[int, int]) -> tuple[list[tuple[str, _Font, tuple[int, int, int, int]]], int]:
+        """Title and subtitle lines with their fonts and boxes, and the text height."""
         cw, ch = size
-        canvas = Image.new("RGB", size, hex_to_rgb(self.theme.canvas))
-        m = self.theme.margin
-        avail_w, avail_h = round(cw * (1 - 2 * m)), round(ch * (1 - 2 * m))
-
+        avail_w = round(cw * (1 - 2 * self.theme.margin))
         lines: list[tuple[str, _Font, tuple[int, int, int, int]]] = []
         if self.title:
             font, box = self._text_layout(self.title, self.font_path, round(ch * TITLE_HEIGHT), avail_w)
@@ -78,14 +75,27 @@ class CoverComposer(ImageComposer):
                 self.subtitle, self.subtitle_font_path, round(ch * SUBTITLE_HEIGHT), avail_w
             )
             lines.append((self.subtitle, font, box))
+        text_h = sum(b[3] - b[1] for _, _, b in lines) + round(ch * SUBTITLE_GAP) * max(0, len(lines) - 1)
+        return lines, text_h
+
+    def diagram_box(self, size: tuple[int, int]) -> tuple[int, int]:
+        avail_w, avail_h = super().diagram_box(size)
+        lines, text_h = self._lines(size)
+        if not lines:
+            return avail_w, avail_h
+        return avail_w, max(1, avail_h - text_h - round(size[1] * TITLE_GAP))
+
+    def compose(self, image: RenderedImage | None, size: tuple[int, int]) -> Image.Image:
+        self.check_size(size)
+        cw, ch = size
+        canvas = Image.new("RGB", size, hex_to_rgb(self.theme.canvas))
+        lines, text_h = self._lines(size)
         sub_gap = round(ch * SUBTITLE_GAP)
-        text_h = sum(b[3] - b[1] for _, _, b in lines) + sub_gap * max(0, len(lines) - 1)
 
         fitted = None
         gap = round(ch * TITLE_GAP) if lines else 0
         if image is not None:
-            box = (avail_w, max(1, avail_h - text_h - gap))
-            fitted = fit(image, box, self.theme.canvas, self.theme.max_scale)
+            fitted = fit(image, self.diagram_box(size), self.theme.canvas, self.theme.max_scale)
         if fitted is None:
             gap = 0
 
