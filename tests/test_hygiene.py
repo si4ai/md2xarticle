@@ -83,3 +83,74 @@ def test_git_pointer_file_is_not_scanned(tmp_path):
     (tmp_path / "ok.md").write_text("A clean file.\n", encoding="utf-8")
     proc = scan(tmp_path, env=_env_without_deny())
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_planted_bom_fails_visibly(tmp_path):
+    (tmp_path / "planted.txt").write_bytes(b"\xef\xbb\xbfhello\n")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "- byte-order mark in planted.txt" in proc.stdout
+    blob = proc.stdout + proc.stderr
+    assert "\ufeff" not in blob
+
+
+def test_planted_utf16_bom_fails_visibly(tmp_path):
+    (tmp_path / "planted.txt").write_bytes(b"\xff\xfeh\x00i\x00\n\x00")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "- byte-order mark in planted.txt" in proc.stdout
+
+
+def test_planted_typographic_mark_fails_visibly(tmp_path):
+    (tmp_path / "planted.txt").write_text("see this " + "\u2192" + " there\n", encoding="utf-8")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "- typographic mark U+2192 in planted.txt" in proc.stdout
+    assert "\u2192" not in proc.stdout + proc.stderr
+
+
+def test_staged_bom_fails_visibly(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = {
+        **_env_without_deny(),
+        "GIT_AUTHOR_NAME": "builder",
+        "GIT_AUTHOR_EMAIL": "builder@users.noreply.github.com",
+        "GIT_COMMITTER_NAME": "builder",
+        "GIT_COMMITTER_EMAIL": "builder@users.noreply.github.com",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True, env=env)
+    (repo / "ok.txt").write_text("hello\n", encoding="utf-8")
+    subprocess.run(["git", "add", "ok.txt"], cwd=repo, check=True, env=env)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=repo, check=True, env=env)
+    (repo / "planted.txt").write_bytes(b"\xef\xbb\xbfhello\n")
+    subprocess.run(["git", "add", "planted.txt"], cwd=repo, check=True, env=env)
+    proc = scan(repo, "--staged", env=env)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "- byte-order mark in planted.txt" in proc.stdout
+    (repo / "planted.txt").write_bytes(b"hello\n")
+    subprocess.run(["git", "add", "planted.txt"], cwd=repo, check=True, env=env)
+    proc = scan(repo, "--staged", env=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_snapshot_typographic_mark_is_allowed(tmp_path):
+    """Flattened-list snapshots keep the HTML writer's typography (an en dash)."""
+    snap = tmp_path / "tests" / "snapshots"
+    snap.mkdir(parents=True)
+    (snap / "out.html").write_text("item " + "\u2013" + " nested\n", encoding="utf-8")
+    (tmp_path / "ok.md").write_text("A clean file.\n", encoding="utf-8")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_snapshot_still_flags_bom(tmp_path):
+    snap = tmp_path / "tests" / "snapshots"
+    snap.mkdir(parents=True)
+    (snap / "out.html").write_bytes(b"\xef\xbb\xbfhello\n")
+    proc = scan(tmp_path, env=_env_without_deny())
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "- byte-order mark in tests/snapshots/out.html" in proc.stdout
