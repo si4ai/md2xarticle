@@ -1,0 +1,65 @@
+# Written by rco init (rco 0.1.6). Advisory: it fails only on
+# exit 2 or 3 (usage or internal error), never on contract findings.
+name: rco
+
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  rco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .rco
+          key: rco-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            rco-${{ github.ref_name }}-
+            rco-main-
+      - name: Install rco
+        run: pip install "repo-context-optimizer==0.1.6"
+      - name: Contract report
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -u
+          base=$(git merge-base "$PR_BASE" "$PR_HEAD")
+          worst=0
+          run() {
+            code=0
+            "$@" >> "$GITHUB_STEP_SUMMARY" || code=$?
+            if [ "$code" -ge 2 ]; then worst=$code; fi
+          }
+          run rco diff "$base" "$PR_HEAD"
+          run rco affected "$base" "$PR_HEAD"
+          if [ -d pins ]; then run rco drift pins --at "$PR_HEAD"; fi
+          # cross-PR notice: other open PRs into the same base that use a
+          # contract this PR changes. It writes its own summary section.
+          code=0
+          python -m rco.notice_report || code=$?
+          if [ "$code" -ge 2 ]; then worst=$code; fi
+          exit "$worst"
+      - name: Update the store
+        if: github.event_name == 'push'
+        run: rco update --name "${{ github.ref_name }}"
