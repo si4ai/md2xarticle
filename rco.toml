@@ -1,0 +1,15 @@
+# rco settings (README "Storage backends" and "Module"). Everything is
+# commented out, so the defaults apply until you edit a line.
+
+# backend = "sqlite"            # or an installed rco.backends entry point
+# [store]
+# path = ".rco/rco.db"          # sqlite, relative to the working tree top
+
+# [affected]
+# ignore = ["docs/**"]          # changed paths no test reads
+
+# Modules (read from git at each commit). The first matching rule wins;
+# manifests (package.json, Cargo.toml) and directories cover the rest.
+# [[module]]
+# id = "frontend"
+# paths = ["web/**"]
