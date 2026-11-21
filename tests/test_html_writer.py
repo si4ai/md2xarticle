@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from md2xarticle.model import Document
+from md2xarticle.model import Article, Document, ImageRef
 from md2xarticle.parse.markdown_it import MarkdownItParser
 from md2xarticle.shape.headings import MAP_FLAT, format_outline, restructure
 from md2xarticle.write.html import (
@@ -257,3 +257,21 @@ def test_marker_from_a_block_field():
     doc = StubDocument(None, None, (Block(2, "[Image 02: Flow]"),), (), images=())
     assert image_marker(doc, 2) == "[Image 02: Flow]"
     assert image_marker(doc, 3) == "[Image 03]"
+
+
+def test_model_article_feeds_markdown_document_and_markers(tmp_path):
+    """The full conversion hands the writer a model ``Article``; markers come from ``images``."""
+    doc = MarkdownItParser().parse(MERMAID)
+    ref = ImageRef(order=1, file="images/01.png", marker="[Image 01: Flow]", caption="Flow", anchor_text="Intro:", source_line=3)
+    html_path, outline_path = XArticleHtmlWriter().write(
+        Article(images=(ref,), markdown=MERMAID, document=doc), tmp_path
+    )
+    html = html_path.read_text(encoding="utf-8")
+    assert "<p>Intro:</p>\n<p>[Image 01: Flow]</p>\n<p>After.</p>" in html
+    assert outline_path.read_text(encoding="utf-8") == "Outline (X levels)\n"
+
+
+def test_model_article_without_a_ref_keeps_the_numbered_marker(tmp_path):
+    doc = MarkdownItParser().parse(MERMAID)
+    html_path, _ = XArticleHtmlWriter().write(Article(markdown=MERMAID, document=doc), tmp_path)
+    assert "<p>[Image 01]</p>" in html_path.read_text(encoding="utf-8")

@@ -85,10 +85,16 @@ class ImageRef:
 class Article:
     """The shaped article passed to ``ArticleWriter`` implementations.
 
-    The HTML writer (a later Phase 2 lane) should read markers from
-    ``images`` and not add fields here.
+    ``images`` lists the body images that were written, in reading order;
+    writers take marker text from them. ``markdown`` is the article text and
+    ``document`` its parse, for writers that render the body (HTML).
+    ``heading_map`` is the ``--heading-map`` choice. A writer that needs none
+    of these ignores them.
     """
 
     source: str = "article.md"
     images: tuple[ImageRef, ...] = ()
     cover: str | None = None
+    markdown: str = ""
+    document: Document | None = None
+    heading_map: str = "auto"

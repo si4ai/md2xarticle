@@ -66,11 +66,16 @@ class HtmlOptions:
 
 @dataclass(frozen=True)
 class HtmlArticle:
-    """What the HTML writer needs: the Markdown text and its parsed ``Document``."""
+    """What the HTML writer needs: the Markdown text and its parsed ``Document``.
+
+    ``images`` are written image references (``model.ImageRef``); a Mermaid
+    block whose ``order`` matches takes that reference's marker.
+    """
 
     markdown: str
     document: Document
     heading_map: str = MAP_AUTO
+    images: tuple[Any, ...] = ()
 
 
 # --- image markers ----------------------------------------------------------
@@ -313,6 +318,7 @@ class _Context:
     document: Any
     outline: Outline
     options: HtmlOptions
+    images: tuple[Any, ...] = ()
     _entries: Iterator[OutlineEntry] = field(init=False)
     _title_skipped: bool = field(init=False, default=False)
     _markers: int = field(init=False, default=0)
@@ -332,6 +338,9 @@ class _Context:
 
     def next_marker(self) -> str:
         self._markers += 1
+        for ref in self.images:
+            if getattr(ref, "order", None) == self._markers and getattr(ref, "marker", None):
+                return str(ref.marker)
         return image_marker(self.document, self._markers)
 
     def inlines(self, node: SyntaxTreeNode) -> str:
@@ -412,6 +421,7 @@ def render_body(article: HtmlArticle, options: HtmlOptions | None = None) -> lis
         document=article.document,
         outline=restructure(article.document, article.heading_map),
         options=options or HtmlOptions(),
+        images=article.images,
     )
     tree = SyntaxTreeNode(_markdown().parse(_body(article.markdown)))
     lines = ctx.blocks(tree.children)
@@ -439,8 +449,17 @@ def render_html(article: HtmlArticle, options: HtmlOptions | None = None) -> str
 def _coerce(article: Any) -> HtmlArticle:
     if isinstance(article, HtmlArticle):
         return article
-    # Anything else (the writer contract passes a bare object) is an empty article.
-    return HtmlArticle(markdown="", document=_EMPTY_DOCUMENT)
+    # A model ``Article`` (the full conversion) carries the text, its parse and
+    # the written images. Without a parsed document the article is empty.
+    document = getattr(article, "document", None)
+    if document is None:
+        return HtmlArticle(markdown="", document=_EMPTY_DOCUMENT)
+    return HtmlArticle(
+        markdown=getattr(article, "markdown", "") or "",
+        document=document,
+        heading_map=getattr(article, "heading_map", MAP_AUTO) or MAP_AUTO,
+        images=tuple(getattr(article, "images", ()) or ()),
+    )
 
 
 class XArticleHtmlWriter(ArticleWriter):

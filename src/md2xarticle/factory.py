@@ -108,4 +108,5 @@ def build_pipeline(
         make_cover=make_cover,
         platform=platform,
         theme=theme,
+        writers=(XArticleHtmlWriter(), ManifestWriter()),
     )

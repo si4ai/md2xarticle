@@ -1,11 +1,12 @@
-"""The diagrams pipeline. Depends only on the base classes; the factory wires
-in the concrete ones."""
+"""The pipeline: diagrams alone (``run_diagrams``) or the full conversion
+(``run``). Depends only on the base classes; the factory wires in the
+concrete ones."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 from PIL import Image
 
@@ -13,12 +14,16 @@ from md2xarticle.compose.base import ImageComposer
 from md2xarticle.compose.measure import measure
 from md2xarticle.customize import DiagramOverride
 from md2xarticle.errors import DiagramRenderError, UsageError
-from md2xarticle.model import Document, MermaidBlock, RenderedImage
+from md2xarticle.model import Article, Document, MermaidBlock, RenderedImage
 from md2xarticle.parse.base import MarkdownParser
 from md2xarticle.platform.base import Platform
+from md2xarticle.privacy import Finding, scan_text
 from md2xarticle.render.base import DiagramRenderer
+from md2xarticle.shape.headings import MAP_AUTO, Outline, restructure
+from md2xarticle.shape.markers import build_article
 from md2xarticle.theme import Theme, hex_to_rgb
 from md2xarticle.transform import is_flowchart, set_flowchart_direction
+from md2xarticle.write.base import ArticleWriter
 
 PNG_OPTIONS = {"format": "PNG", "compress_level": 6, "optimize": False}
 # A flowchart that is limited by the canvas height is also rendered with this
@@ -68,6 +73,29 @@ class DiagramsResult:
         return [r for r in self.images if not r.ok]
 
 
+@dataclass(frozen=True)
+class ConvertOptions:
+    """The full conversion: the diagrams options plus the article-level ones.
+
+    ``source`` is the article file name for the manifest. ``deny`` is the
+    privacy deny-list; ``None`` means no privacy scan.
+    """
+
+    diagrams: DiagramsOptions
+    source: str = "article.md"
+    heading_map: str = MAP_AUTO
+    deny: tuple[str, ...] | None = None
+
+
+@dataclass
+class ConvertResult:
+    diagrams: DiagramsResult
+    outline: Outline
+    article: Article
+    written: list[Path] = field(default_factory=list)
+    findings: list[Finding] | None = None  # None: the scan did not run
+
+
 def image_name(index: int, total: int) -> str:
     return f"{index:0{max(2, len(str(total)))}d}.png"
 
@@ -87,8 +115,10 @@ class Pipeline:
         make_cover: Callable[[str | None, str | None], ImageComposer],
         platform: Platform,
         theme: Theme,
+        writers: Sequence[ArticleWriter] = (),
     ) -> None:
         self.parser = parser
+        self.writers = tuple(writers)
         self.renderer = renderer
         self.body = body
         self.make_cover = make_cover
@@ -164,8 +194,32 @@ class Pipeline:
         for problem in margins.problems(composer.center_tolerance):
             warnings.append(f"{label}: {problem}")
 
-    def run_diagrams(self, text: str, opts: DiagramsOptions) -> DiagramsResult:
+    def run(self, text: str, opts: ConvertOptions) -> ConvertResult:
+        """Parse, shape, render and compose, write every output, then scan."""
         doc = self.parser.parse(text)
+        outline = restructure(doc, opts.heading_map)  # a bad map fails before any render
+        diagrams = self._diagrams(doc, opts.diagrams)
+        included = {r.index: r.file for r in diagrams.images if r.ok and r.file}
+        article = build_article(
+            doc,
+            source=opts.source,
+            cover=diagrams.cover,
+            included=included,
+            markdown=text,
+            heading_map=opts.heading_map,
+        )
+        written: list[Path] = []
+        for writer in self.writers:
+            written.extend(writer.write(article, opts.diagrams.out_dir))
+        findings = scan_text(text, opts.deny) if opts.deny is not None else None
+        return ConvertResult(
+            diagrams=diagrams, outline=outline, article=article, written=written, findings=findings
+        )
+
+    def run_diagrams(self, text: str, opts: DiagramsOptions) -> DiagramsResult:
+        return self._diagrams(self.parser.parse(text), opts)
+
+    def _diagrams(self, doc: Document, opts: DiagramsOptions) -> DiagramsResult:
         result = DiagramsResult(document=doc)
         total = len(doc.blocks)
         if opts.only is not None:
