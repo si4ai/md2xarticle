@@ -2,7 +2,7 @@
 
 Markdown in, X Article out. One command turns a Markdown file, Mermaid diagrams included, into a paste-ready article body plus polished images for the X (Twitter) Article editor.
 
-**Status:** Phase 1 `diagrams` is implemented. Phase 2 heading restructuring, `outline`, image markers, captions, `manifest.json`, and the HTML writer (`article.html` and `outline.txt`) are implemented. The full conversion command is not. This README is the v0 design for whoever builds it, human or bot.
+**Status:** The full conversion (`md2xarticle ARTICLE.md`) is implemented: one run writes `article.html`, `outline.txt`, the images, and `manifest.json`. So are `diagrams`, `outline`, and `check`. This README is the v0 design for whoever builds it, human or bot.
 
 ### If you are an agent
 
@@ -30,7 +30,7 @@ md2xarticle's rule: **if the tool can do it, the human should not have to.** Wha
 
 ## Just works
 
-The intended default, once implemented:
+The default:
 
 ```
 pip install md2xarticle
@@ -303,7 +303,7 @@ tests/
 
 ## Planned commands
 
-`diagrams` and `outline` are implemented. The full conversion and `check` are not yet. Defaults match the [quick start](#just-works).
+All four are implemented: the full conversion, `diagrams`, `outline`, and `check`. Defaults match the [quick start](#just-works).
 
 ### `md2xarticle ARTICLE.md [-o OUT] [options]`
 
@@ -355,13 +355,18 @@ then upload images in order at each [Image NN] marker.
   "ok": true,
   "out_dir": "out",
   "html": "out/article.html",
+  "outline": "out/outline.txt",
   "manifest": "out/manifest.json",
   "images": 2,
   "cover": true,
+  "failed": [],
   "warnings": [],
-  "privacy_findings": []
+  "privacy_findings": [],
+  "notes": []
 }
 ```
+
+`images` counts the body images written; `cover` says whether `images/cover.png` was written. `failed` lists each diagram that did not render (`order`, `source_line`, `error`). `privacy_findings` is `[]` when `--check-privacy` is off. `notes` holds platform hints, such as the WSL paste note.
 
 ### `md2xarticle diagrams ARTICLE.md [-o OUT] [--cover]`
 
@@ -519,6 +524,13 @@ Decided:
 - **Markers and manifest.** Each written body image gets a marker `[Image NN: caption]` and a `manifest.json` entry with `order`, `file`, `marker`, `caption`, `anchor_text`, and `source_line`. `anchor_text` is the paragraph immediately before the diagram, or `null` when the previous block is not a paragraph. `source` is the article file name, not a path. `cover` is `images/cover.png` or `null`. Image numbers are zero-padded to at least two digits, matching `images/NN.png`. The manifest lists only images that were written (a failed render is omitted). `diagrams` writes `manifest.json`, and `--json` includes a `manifest` path.
 - **Nested diagrams.** A Mermaid fence inside a list item or blockquote is a diagram like any other and keeps its place in reading order. It takes no `anchor_text` and no `Figure:` caption from the text around it; its caption comes from its own `title` or `%% caption:`, then the nearest heading.
 - **PyPI release.** Trusted publishing from `.github/workflows/release.yml`. `workflow_dispatch` from `main` is a dry run (build, tests, twine, wheel smoke; uploads nothing). A `v*` tag on `main` publishes to PyPI (environment `pypi`). A human admin approves the `pypi` environment when a reviewer is required. The `testpypi` environment is unused. See [Release](#release) and [docs/RELEASE.md](docs/RELEASE.md).
+- **Full conversion** (`md2xarticle ARTICLE.md`).
+  - Any first argument that is not a command name (`diagrams`, `outline`, `check`) or `-h`, `--help`, `--version` starts the full conversion, so flags may come before the file. An article named like a command is passed as `./check`.
+  - `Pipeline.run` parses once, renders and composes the images, then hands one `Article` (images written, cover, Markdown text, its parse, heading map) to every `ArticleWriter` the factory gives it: `XArticleHtmlWriter`, then `ManifestWriter`. The privacy scan runs last, only with `--check-privacy`.
+  - `article.html` and `outline.txt` are always written in full. A diagram that failed, or that `--only` left out, keeps the numbered `[Image NN]` marker in the HTML and is not in the manifest, which lists only images written in this run.
+  - Exit 1 for a failed diagram, privacy findings, or a heading fallback. A heading fallback prints a warning and `try:   md2xarticle ARTICLE.md --heading-map flat`. A failed diagram keeps the retry line from the [Output contract](#output-contract): `md2xarticle diagrams ARTICLE.md --only N --verbose`. Usage and internal errors name the full conversion in their `try:` line.
+  - `--json` has the README keys plus `outline`, `failed`, and `notes`; see the sample under [Planned commands](#planned-commands). The text summary counts the cover in its image total and cuts a long `anchor_text` to 48 characters.
+  - `--open` opens the output folder through `Platform.open_result` after writing.
 - **Contract reports (rco).** `.github/workflows/rco.yml`, written by `rco init` from repo-context-optimizer 0.1.6 (the workflow pins that version), adds one report-only `rco` job (Ubuntu, Python 3.12). On a pull request its job summary shows `rco diff`, `rco affected`, `rco drift pins` and the cross-PR notice; on a push to `main` it runs `rco update`. It is not a required check and nothing runs at pre-commit. `pins/core.json` (`model`, `theme`, `errors`, the package root) and `pins/interfaces.json` (the five base classes, `pipeline`, `factory`) pin the most-imported public contracts; a drift is a report, and a change made on purpose re-pins with `rco pin --for FILES --format json --out pins/NAME.json`. `rco.toml` keeps every default.
 
 Proposed in this draft but not yet approved by the owner. Confirm or cut each one:

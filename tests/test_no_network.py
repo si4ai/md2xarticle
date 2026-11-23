@@ -1,4 +1,4 @@
-"""A diagrams conversion must never touch the network.
+"""A conversion (`diagrams` or the full one) must never touch the network.
 
 The conversion runs in a fresh process with a socket guard installed before
 md2xarticle (or any renderer module) is imported. Every connect, DNS lookup, or
@@ -68,6 +68,24 @@ def test_diagrams_conversion_makes_no_network_calls(tmp_path):
     assert proc.returncode == 0, proc.stderr
     names = sorted(p.name for p in (out / "images").iterdir())
     assert names == ["01.png", "02.png", "03.png", "04.png", "cover.png"]
+
+
+def test_full_conversion_makes_no_network_calls(tmp_path):
+    out = tmp_path / "out"
+    proc = run_guarded(
+        f"""
+        from md2xarticle import cli
+        try:
+            rc = cli.main([{str(FIXTURE_MD)!r}, "-o", {str(out)!r}, "--cover", "--only", "1,2,3,4", "--check-privacy"])
+        except BaseException as exc:
+            print(f"conversion raised {{exc!r}}", file=sys.stderr)
+            rc = 98
+        _finish(rc)
+        """
+    )
+    assert "NETWORK ATTEMPT BLOCKED" not in proc.stderr, proc.stderr
+    assert proc.returncode == 0, proc.stderr
+    assert sorted(p.name for p in out.iterdir()) == ["article.html", "images", "manifest.json", "outline.txt"]
 
 
 def test_guard_fails_visibly_on_a_network_attempt():

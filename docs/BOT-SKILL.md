@@ -18,7 +18,7 @@ Python 3.11 to 3.13. No Node, no browser, and no network at run time.
 md2xarticle article.md -o out/ --json
 ```
 
-Until the full conversion ships, render images with:
+It writes `out/article.html`, `out/outline.txt`, `out/images/`, and `out/manifest.json` in one run. To render the images alone:
 
 ```
 md2xarticle diagrams article.md -o out/ --json
@@ -33,7 +33,7 @@ md2xarticle check article.md
 
 `outline` prints the heading structure after it is reshaped for X's two levels. `check` runs the privacy scan only and writes nothing.
 
-Useful flags on `diagrams` (and on the full conversion, once it ships): `--cover`, `--theme mono`, `--custom-path article.toml`, `--size 1600x900`, `--only 1`, `--renderer mermaidx`, `-v` / `--verbose`.
+Useful flags on the full conversion and `diagrams`: `--cover`, `--theme mono`, `--custom-path article.toml`, `--size 1600x900`, `--only 1`, `--renderer mermaidx`, `--check-privacy`, `-v` / `--verbose`. The full conversion also takes `--heading-map` and `--open`.
 
 ## Read `--json` and `manifest.json`
 
@@ -44,15 +44,18 @@ Useful flags on `diagrams` (and on the full conversion, once it ships): `--cover
   "ok": true,
   "out_dir": "out",
   "html": "out/article.html",
+  "outline": "out/outline.txt",
   "manifest": "out/manifest.json",
   "images": 2,
   "cover": true,
+  "failed": [],
   "warnings": [],
-  "privacy_findings": []
+  "privacy_findings": [],
+  "notes": []
 }
 ```
 
-The `diagrams --json` shape lists each image (order, file, source line, ok, error) instead of `html` and `manifest`. Treat `"ok": false` or a non-zero exit as a failed or partial run: some images may still have been written.
+`failed` lists each diagram that did not render (order, source line, error). The `diagrams --json` shape lists every image (order, file, source line, ok, error) instead of a count, and has no `html` or `outline`. Treat `"ok": false` or a non-zero exit as a failed or partial run: some images may still have been written.
 
 Then read `out/manifest.json`. It lists the cover (if any) and every body image in reading order, with the marker text, caption, the paragraph just before the image (`anchor_text`), and the source line:
 

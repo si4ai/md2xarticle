@@ -155,10 +155,10 @@ def test_missing_article_and_bad_custom_file(capsys, tmp_path):
     assert code == 2 and "16:9" in err
 
 
-def test_full_conversion_points_to_diagrams(capsys):
-    code, _, err = run(capsys, "article.md")
+def test_bare_article_runs_the_full_conversion(capsys, tmp_path):
+    code, _, err = run(capsys, str(tmp_path / "missing.md"))
     assert code == 2
-    assert "try:   md2xarticle diagrams article.md" in err
+    assert "Phase 2" not in err and "file not found" in err
     assert run(capsys)[0] == 2
 
 

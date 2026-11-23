@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from md2xarticle.model import Article, Document, ImageRef
 from md2xarticle.shape.captions import caption_for
+from md2xarticle.shape.headings import MAP_AUTO
 
 
 def image_file(order: int, total: int) -> str:
@@ -23,6 +24,8 @@ def build_article(
     source: str = "article.md",
     cover: str | None = None,
     included: dict[int, str] | None = None,
+    markdown: str = "",
+    heading_map: str = MAP_AUTO,
 ) -> Article:
     """Shape ``doc`` into an ``Article``.
 
@@ -30,7 +33,8 @@ def build_article(
     (``images/01.png``). ``None`` means every Mermaid block is included,
     with default file names. Pass only the diagrams that were written
     (successful renders) when building a manifest after ``diagrams``.
-    ``source`` should be a file name, not a path.
+    ``source`` should be a file name, not a path. ``markdown`` and
+    ``heading_map`` ride along for the HTML writer.
     """
     total = len(doc.blocks)
     refs: list[ImageRef] = []
@@ -49,4 +53,11 @@ def build_article(
                 source_line=block.line,
             )
         )
-    return Article(source=source, images=tuple(refs), cover=cover)
+    return Article(
+        source=source,
+        images=tuple(refs),
+        cover=cover,
+        markdown=markdown,
+        document=doc,
+        heading_map=heading_map,
+    )
