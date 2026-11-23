@@ -24,6 +24,7 @@ from markdown_it import MarkdownIt
 from markdown_it.tree import SyntaxTreeNode
 
 from md2xarticle.model import Document
+from md2xarticle.shape.comments import strip_html_comments
 from md2xarticle.shape.headings import (
     KIND_HEADING,
     KIND_LEAD_IN,
@@ -155,7 +156,8 @@ def _inline_image(node: SyntaxTreeNode, ctx: _Context) -> str:
 
 
 def _inline_raw_html(node: SyntaxTreeNode, ctx: _Context) -> str:
-    return _text(node.content)
+    # Comments are notes for the author; other raw HTML is shown as text.
+    return _text(strip_html_comments(node.content))
 
 
 _INLINE: dict[str, Callable[[SyntaxTreeNode, _Context], str]] = {
@@ -292,7 +294,8 @@ def _table(node: SyntaxTreeNode, ctx: _Context) -> list[str]:
 
 
 def _raw_html_block(node: SyntaxTreeNode, ctx: _Context) -> list[str]:
-    text = node.content.strip()
+    # A comment-only block is dropped; other raw HTML is one paragraph of text.
+    text = " ".join(strip_html_comments(node.content).split())
     return [f"<p>{_text(text)}</p>"] if text else []
 
 
@@ -403,8 +406,9 @@ def _heading_entry(entry: OutlineEntry | None) -> list[str]:
 
 
 def _markdown() -> MarkdownIt:
-    # html=False: raw HTML in the source is shown as text, never passed through.
-    return MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
+    # Raw HTML is tokenized (so comments can be dropped) but never passed
+    # through: the html_block and html_inline renderers escape it as text.
+    return MarkdownIt("commonmark", {"html": True}).enable(["table", "strikethrough"])
 
 
 def _body(text: str) -> str:

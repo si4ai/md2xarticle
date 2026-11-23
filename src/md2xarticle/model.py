@@ -20,6 +20,7 @@ class MermaidBlock:
     # Filled by the parser for captions and markers:
     anchor_text: str | None = None  # paragraph immediately before the block
     figure_text: str | None = None  # following "Figure:" line, if any
+    italic_text: str | None = None  # following all-italic paragraph, if any
     nearest_heading: str | None = None
 
 

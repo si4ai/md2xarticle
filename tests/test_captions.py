@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from md2xarticle.model import MermaidBlock
 from md2xarticle.parse.markdown_it import MarkdownItParser
 from md2xarticle.shape.captions import caption_for, figure_caption, mermaid_caption_comment, mermaid_title
@@ -97,3 +99,56 @@ def test_bare_title_line_does_not_swallow_next_line():
     assert mermaid_title("flowchart LR\n  title   \n  A-->B\n") is None
     assert mermaid_caption_comment("%% caption:\nflowchart LR\n") is None
     assert mermaid_title("sequenceDiagram\n\ttitle\tTabbed name\n") == "Tabbed name"
+
+
+# --- a plain italic line after a diagram -------------------------------------
+
+FENCE = "```mermaid\nflowchart LR\n  A-->B\n```\n\n"
+
+
+def parsed(after: str, before: str = "## Section\n\n"):
+    return MarkdownItParser().parse(before + FENCE + after).blocks[0]
+
+
+@pytest.mark.parametrize("line", ["*How the parts connect.*", "_How the parts connect._"])
+def test_plain_italic_line_is_the_caption(line):
+    got = parsed(line + "\n")
+    assert got.italic_text == "How the parts connect."
+    assert caption_for(got, 1) == "How the parts connect."
+
+
+def test_figure_line_beats_an_italic_line():
+    got = parsed("*Figure: Explicit*\n")
+    assert caption_for(got, 1) == "Explicit"
+
+
+def test_italic_line_loses_to_title_and_caption_comment():
+    text = "## Section\n\n```mermaid\n%% caption: From comment\nflowchart LR\n  A-->B\n```\n\n*Italic*\n"
+    assert caption_for(MarkdownItParser().parse(text).blocks[0], 1) == "From comment"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "*One* and *two*.",  # two italic runs, not one italic paragraph
+        "Plain words with *some* italic.",
+        "**Bold only.**",
+        "*Line one*\nmore text",
+    ],
+)
+def test_partly_italic_or_bold_paragraph_is_not_a_caption(line):
+    got = parsed(line + "\n")
+    assert got.italic_text is None
+    assert caption_for(got, 1) == "Section"
+
+
+def test_italic_line_after_a_comment_still_counts():
+    got = parsed("<!-- note -->\n\n*After a comment.*\n")
+    assert caption_for(got, 1) == "After a comment."
+
+
+def test_nested_diagram_takes_no_italic_caption():
+    text = "## Section\n\n- item\n\n  ```mermaid\n  flowchart LR\n    A-->B\n  ```\n\n  *Inside the list.*\n"
+    got = MarkdownItParser().parse(text).blocks[0]
+    assert got.italic_text is None
+    assert caption_for(got, 1) == "Section"

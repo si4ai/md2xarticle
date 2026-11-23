@@ -7,6 +7,7 @@ from markdown_it import MarkdownIt
 from md2xarticle.model import Document, Heading, MermaidBlock
 from md2xarticle.parse.base import MarkdownParser
 from md2xarticle.shape.captions import figure_caption
+from md2xarticle.shape.comments import strip_html_comments
 
 _FRONT_MATTER = re.compile(r"\A---[ \t]*\n(.*?\n)(?:---|\.\.\.)[ \t]*(?:\n|\Z)", re.DOTALL)
 def _key(name: str) -> re.Pattern[str]:
@@ -85,6 +86,24 @@ def _headings(tokens, offset: int) -> tuple[Heading, ...]:
 
 
 
+def _all_italic(token) -> bool:
+    """True when one emphasis run covers the whole paragraph: ``*...*`` or ``_..._``."""
+    children = [c for c in (token.children or []) if not (c.type == "text" and not c.content.strip())]
+    if len(children) < 3 or children[0].type != "em_open" or children[-1].type != "em_close":
+        return False
+    depth = 0
+    for i, child in enumerate(children):
+        if child.type == "em_open":
+            depth += 1
+        elif child.type == "em_close":
+            depth -= 1
+            if depth == 0 and i != len(children) - 1:
+                return False
+        elif child.type in {"softbreak", "hardbreak"}:
+            return False
+    return True
+
+
 def _is_mermaid_fence(token) -> bool:
     if token.type != "fence":
         return False
@@ -95,6 +114,7 @@ def _is_mermaid_fence(token) -> bool:
 def _mermaid_blocks(tokens, offset: int) -> tuple[MermaidBlock, ...]:
     """Mermaid fences plus the caption/anchor context around each one."""
     events: list[tuple[str, str | None, object | None]] = []
+    italic: set[int] = set()  # indexes of paragraph events that are all italic
     depth = 0
     i = 0
     n = len(tokens)
@@ -117,8 +137,13 @@ def _mermaid_blocks(tokens, offset: int) -> tuple[MermaidBlock, ...]:
             text = ""
             if i + 1 < n and tokens[i + 1].type == "inline":
                 text = _heading_text(tokens[i + 1])
+                if _all_italic(tokens[i + 1]):
+                    italic.add(len(events))
             events.append(("paragraph", text, None))
             i += 1
+            continue
+        if tok.type == "html_block" and depth == 0 and not strip_html_comments(tok.content).strip():
+            i += 1  # a comment is dropped from the article, so it separates nothing
             continue
         if tok.nesting == 1:
             depth += 1
@@ -151,6 +176,7 @@ def _mermaid_blocks(tokens, offset: int) -> tuple[MermaidBlock, ...]:
         next_kind, next_text, _ = events[idx + 1] if idx + 1 < len(events) else ("other", None, None)
         anchor = prev_text if prev_kind == "paragraph" and prev_text else None
         figure = next_text if next_kind == "paragraph" and figure_caption(next_text) else None
+        italic_line = next_text if next_kind == "paragraph" and not figure and (idx + 1) in italic else None
         blocks.append(
             MermaidBlock(
                 index=len(blocks) + 1,
@@ -158,6 +184,7 @@ def _mermaid_blocks(tokens, offset: int) -> tuple[MermaidBlock, ...]:
                 line=line,
                 anchor_text=anchor,
                 figure_text=figure,
+                italic_text=italic_line or None,
                 nearest_heading=last_heading,
             )
         )
