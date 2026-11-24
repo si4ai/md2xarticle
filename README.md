@@ -329,7 +329,7 @@ The full conversion: HTML, outline, images, manifest.
 Sample output:
 
 ```
-md2xarticle 0.1.0  article.md -> out/
+md2xarticle 0.1.1  article.md -> out/
 
 Outline (X levels)
   H   Introduction
