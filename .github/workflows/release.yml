@@ -68,7 +68,8 @@ jobs:
         run: |
           set -eu
           python3 - <<'PY'
-          import email, os, sys, zipfile
+          import os, sys, zipfile
+          from email.parser import Parser
           from pathlib import Path
 
           tag = os.environ["REF_NAME"]
@@ -79,7 +80,7 @@ jobs:
               sys.exit(f"expected 1 wheel and 1 sdist, got {wheels} {sdists}")
           with zipfile.ZipFile(wheels[0]) as zf:
               name = next(n for n in zf.namelist() if n.endswith(".dist-info/METADATA"))
-              meta = email.parser.Parser().parsestr(zf.read(name).decode())
+              meta = Parser().parsestr(zf.read(name).decode())
           version = meta["Version"]
           if version != want:
               sys.exit(
