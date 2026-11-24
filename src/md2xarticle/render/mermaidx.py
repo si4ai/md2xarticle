@@ -18,8 +18,19 @@ from md2xarticle.theme import Theme
 # canvas gets a second, compact render; the one that fits 16:9 larger wins.
 # Diagrams that already read at full size keep their spacing.
 DEFAULT_CANVAS_HEIGHT = 900
+DEFAULT_CANVAS_WIDTH = 1600
 TALL_RANK_SPACING = 30
 TALL_SEQUENCE = {"messageMargin": 26, "boxMargin": 8}
+# A flowchart wider than 16:9 is limited by the canvas width; a compact dagre
+# render (tighter rank and node spacing) is kept only when it draws at least
+# this much larger, so diagrams that gain little keep their ELK look.
+WIDE_SPACING = 30
+WIDE_MIN_GAIN = 1.1
+
+# A ``%%{init: ...}%%`` directive that sets ``theme`` or ``themeVariables``:
+# the author's palette for that one diagram.
+_DIRECTIVE = re.compile(r"%%\{\s*init(?:ialize)?\s*:(.*?)\}%%", re.DOTALL | re.IGNORECASE)
+_THEME_KEY = re.compile(r"""["']?\btheme(?:Variables)?["']?\s*:""")
 
 _KIND = re.compile(r"^\s*([A-Za-z][\w-]*)")
 _TOP_DOWN = re.compile(r"^\s*(?:flowchart|graph)(?:\s+(TD|TB))?\s*(?:;|$)", re.IGNORECASE)
@@ -43,6 +54,11 @@ def diagram_kind(source: str) -> str:
 def is_top_down(source: str) -> bool:
     lines = _statements(source)
     return bool(lines and _TOP_DOWN.match(lines[0]))
+
+
+def has_author_theme(source: str) -> bool:
+    """True when the source sets its own ``theme`` or ``themeVariables`` in an init directive."""
+    return any(_THEME_KEY.search(m.group(1)) for m in _DIRECTIVE.finditer(source))
 
 
 def svg_size(svg: str) -> tuple[float, float]:
@@ -95,10 +111,18 @@ class MermaidxRenderer(DiagramRenderer):
         fits a 16:9 canvas larger. Both candidates are fixed, so the choice is
         deterministic."""
         config = theme.mermaid_config()
+        if has_author_theme(source):
+            # The author's colors win for this diagram (site themeVariables
+            # would override the directive's); spacing, corners and the
+            # canvas stay the md2xarticle theme's.
+            del config["themeVariables"]
         svg = self._svg(source, theme, config)
         if not theme.compact_tall:
             return svg
         kind = diagram_kind(source)
+        w, h = svg_size(svg)
+        if kind == "flowchart" and w * 9 > h * 16:
+            return self._wide_svg(source, theme, config, svg)
         if kind == "flowchart" and is_top_down(source):
             # ELK, Mermaid's default layout here, ignores rank spacing; dagre
             # honours it.
@@ -107,7 +131,6 @@ class MermaidxRenderer(DiagramRenderer):
             compact = {**config, "sequence": {**config["sequence"], **TALL_SEQUENCE}}
         else:
             return svg
-        w, h = svg_size(svg)
         if h * 16 <= w * 9:
             return svg  # limited by the width already
         if h <= DEFAULT_CANVAS_HEIGHT * (1 - 2 * theme.margin):
@@ -118,6 +141,23 @@ class MermaidxRenderer(DiagramRenderer):
             return svg
         aw, ah = svg_size(alt)
         return alt if min(16 / aw, 9 / ah) > min(16 / w, 9 / h) else svg
+
+    def _wide_svg(self, source: str, theme: Theme, config: dict[str, Any], svg: str) -> str:
+        """For a flowchart wider than 16:9, a compact render when it reads larger."""
+
+        def fit(candidate: str) -> float:
+            w, h = svg_size(candidate)
+            usable = 1 - 2 * theme.margin
+            return min(DEFAULT_CANVAS_WIDTH * usable / w, DEFAULT_CANVAS_HEIGHT * usable / h, theme.max_scale)
+
+        if fit(svg) >= theme.max_scale:
+            return svg  # already drawn as large as allowed
+        flow = {**config["flowchart"], "rankSpacing": WIDE_SPACING, "nodeSpacing": WIDE_SPACING}
+        try:
+            alt = self._svg(source, theme, {**config, "layout": "dagre", "flowchart": flow})
+        except DiagramRenderError:
+            return svg
+        return alt if fit(alt) >= WIDE_MIN_GAIN * fit(svg) else svg
 
     def render(self, source: str, theme: Theme) -> RenderedImage:
         from mermaidx.raster import render_png

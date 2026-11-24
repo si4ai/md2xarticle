@@ -17,7 +17,7 @@ Schema (every key optional)::
     edge_width = 2.0          # px
     wrap_width = 320          # px, flowchart label wrapping (default: automatic)
     rotate_commit_labels = true  # gitGraph: false draws commit labels level
-    compact_tall = true       # tall flowcharts and sequences may render compact
+    compact_tall = true       # tall or wide flowcharts and tall sequences may render compact
     margin = 0.06             # fraction of each canvas side, 0.04 to 0.25
 
     [palette]                 # #RRGGBB colors

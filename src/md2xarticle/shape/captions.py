@@ -1,7 +1,8 @@
 """Pick a caption for a Mermaid block.
 
 Order (see README, Decided): a Mermaid title, a ``%% caption:`` comment,
-a following Figure line, the nearest preceding heading, then ``Diagram NN``.
+a following Figure line, a following all-italic line, the nearest preceding
+heading, then ``Diagram NN``.
 """
 
 from __future__ import annotations
@@ -87,6 +88,7 @@ def caption_for(block: MermaidBlock, total: int) -> str:
         mermaid_title(block.source),
         mermaid_caption_comment(block.source),
         figure_caption(block.figure_text),
+        (block.italic_text or "").strip() or None,
         (block.nearest_heading or "").strip() or None,
     ):
         if value:

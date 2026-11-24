@@ -275,3 +275,25 @@ def test_model_article_without_a_ref_keeps_the_numbered_marker(tmp_path):
     doc = MarkdownItParser().parse(MERMAID)
     html_path, _ = XArticleHtmlWriter().write(Article(markdown=MERMAID, document=doc), tmp_path)
     assert "<p>[Image 01]</p>" in html_path.read_text(encoding="utf-8")
+
+
+# --- HTML comments -----------------------------------------------------------
+
+
+def test_comment_only_blocks_are_dropped():
+    text = (
+        "<!-- a note for the author -->\n\n"
+        "First paragraph.\n\n"
+        "<!-- one\nspanning two lines -->\n"
+        "<!-- and a second comment right after -->\n\n"
+        "Last paragraph.\n"
+    )
+    assert body(text) == ["<p>First paragraph.</p>", "<p>Last paragraph.</p>"]
+
+
+def test_inline_comment_is_dropped():
+    assert body("Before <!-- hidden --> after.\n") == ["<p>Before  after.</p>"]
+
+
+def test_comment_next_to_other_raw_html_keeps_the_html_as_text():
+    assert body("<div>kept</div>\n<!-- gone -->\n") == ["<p>&lt;div&gt;kept&lt;/div&gt;</p>"]
