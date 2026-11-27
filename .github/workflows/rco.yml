@@ -1,4 +1,4 @@
-# Written by rco init (rco 0.1.6). Advisory: it fails only on
+# Written by rco init (rco 0.1.7). Advisory: it fails only on
 # exit 2 or 3 (usage or internal error), never on contract findings.
 name: rco
 
@@ -32,7 +32,7 @@ jobs:
             rco-${{ github.ref_name }}-
             rco-main-
       - name: Install rco
-        run: pip install "repo-context-optimizer==0.1.6"
+        run: pip install "repo-context-optimizer==0.1.7"
       - name: Contract report
         if: github.event_name == 'pull_request'
         env:
