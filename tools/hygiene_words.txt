@@ -1,0 +1,4 @@
+# ordinary words that may appear title-cased at a line start in PR and
+# issue text, such as the org PR template headings. never a personal
+# name. one lower-case word per line.
+risks
